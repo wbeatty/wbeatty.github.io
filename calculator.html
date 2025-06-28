@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<!--[if lt IE 7]>      <html class="no-js lt-ie9 lt-ie8 lt-ie7"> <![endif]-->
+<!--[if IE 7]>         <html class="no-js lt-ie9 lt-ie8"> <![endif]-->
+<!--[if IE 8]>         <html class="no-js lt-ie9"> <![endif]-->
+<!--[if gt IE 8]>      <html class="no-js"> <!--<![endif]-->
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <title>Card Counting Calculator</title>
+    <meta name="description" content="" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="static/css/styles.css" />
+  </head>
+  <body onload="updateDisplay()">
+    <h1>Card Counting Calculator</h1>
+    <div class="container">
+      <div class="card">
+        <h2>Recommended Bet:</h2>
+        <p id="recommended-bet">1</p>
+        <h2>Current Count:</h2>
+        <p id="count">0</p>
+        <h2>True Count:</h2>
+        <p id="true-count">0</p>
+        <h2>Cards Remaining:</h2>
+        <p id="cards-remaining">260</p>
+      </div>
+      <div class="button-container flex-row">
+        <button id="add-button" onclick="add()">6 & Below</button>
+        <button id="subtract-button" onclick="subtract()">10 & Above</button>
+        <button id="reset-button" onclick="reset()">Reset</button>
+      </div>
+    </div>
+    <script src="static/js/script.js"></script>
+  </body>
+</html>

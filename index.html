@@ -34,18 +34,21 @@
         />
         <span id="slider-value">5</span>
       </div>
-      <div class="card">
-        <h2>Current Count:</h2>
-        <p id="count">0</p>
-        <h2>True Count:</h2>
-        <p id="true-count">0</p>
-        <h2>Cards Remaining:</h2>
-        <p id="cards-remaining">260</p>
+      <div class="bet-size-container">
+        <h2>Bet Size</h2>
+        <input
+          type="range"
+          min="1"
+          max="100"
+          value="50"
+          class="slider"
+          id="bet-size"
+          oninput="updateBetSize()"
+        />
+        <span id="bet-size-value">50</span>
       </div>
       <div class="button-container flex-row">
-        <button id="add-button" onclick="add()">6 & Below</button>
-        <button id="subtract-button" onclick="subtract()">10 & Above</button>
-        <button id="reset-button" onclick="reset()">Reset</button>
+        <button id="submit-button" onclick="submit()">Submit</button>
       </div>
     </div>
     <script src="static/js/script.js"></script>
