@@ -2,7 +2,7 @@
   "name": "Daily Spend",
   "short_name": "DailySpend",
   "description": "Know what you can spend. Every day.",
-  "start_url": "/",
+  "start_url": "./",
   "display": "standalone",
   "background_color": "#0d0d14",
   "theme_color": "#1a1a2e",
