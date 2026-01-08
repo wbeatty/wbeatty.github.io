@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#1a1a2e">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Daily Spend</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Sora:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app">
+    <!-- Setup Screen -->
+    <section id="setup-screen" class="screen">
+      <div class="setup-container">
+        <h1 class="logo">daily<span>spend</span></h1>
+        <p class="tagline">Know what you can spend. Every day.</p>
+        
+        <form id="setup-form" class="setup-form">
+          <div class="input-group">
+            <label for="start-amount">Starting Budget</label>
+            <div class="input-wrapper currency">
+              <span class="currency-symbol">$</span>
+              <input 
+                type="number" 
+                id="start-amount" 
+                placeholder="500" 
+                min="1" 
+                step="0.01"
+                required
+                inputmode="decimal"
+              >
+            </div>
+          </div>
+          
+          <div class="input-group">
+            <label for="total-days">Number of Days</label>
+            <div class="input-wrapper">
+              <input 
+                type="number" 
+                id="total-days" 
+                placeholder="30" 
+                min="1" 
+                max="365"
+                required
+                inputmode="numeric"
+              >
+              <span class="input-suffix">days</span>
+            </div>
+          </div>
+          
+          <button type="submit" class="btn btn-primary">Start Budget</button>
+        </form>
+      </div>
+    </section>
+
+    <!-- Dashboard Screen -->
+    <section id="dashboard-screen" class="screen hidden">
+      <header class="dashboard-header">
+        <h1 class="logo-small">daily<span>spend</span></h1>
+        <button id="reset-btn" class="btn-icon" title="Reset Budget">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+            <path d="M3 3v5h5"/>
+          </svg>
+        </button>
+      </header>
+
+      <div class="dashboard-content">
+        <!-- Today's Allowance Card -->
+        <div class="card card-main">
+          <span class="card-label">Today's Allowance</span>
+          <div class="card-value">
+            <span class="currency">$</span><span id="today-allowance">0.00</span>
+          </div>
+          <div class="card-meta">
+            <span id="days-remaining">0</span> days remaining
+          </div>
+        </div>
+
+        <!-- Stats Row -->
+        <div class="stats-row">
+          <div class="card card-stat">
+            <span class="card-label">Spent Today</span>
+            <div class="card-value small">
+              <span class="currency">$</span><span id="spent-today">0.00</span>
+            </div>
+          </div>
+          <div class="card card-stat">
+            <span class="card-label">Savings Reserve</span>
+            <div class="card-value small positive">
+              <span class="currency">$</span><span id="savings-reserve">0.00</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Remaining Today -->
+        <div class="card card-remaining">
+          <span class="card-label">Remaining Today</span>
+          <div class="card-value medium" id="remaining-wrapper">
+            <span class="currency">$</span><span id="remaining-today">0.00</span>
+          </div>
+          <div class="progress-bar">
+            <div class="progress-fill" id="progress-fill"></div>
+          </div>
+        </div>
+
+        <!-- Log Spending -->
+        <div class="spend-section">
+          <form id="spend-form" class="spend-form">
+            <div class="input-wrapper currency spend-input">
+              <span class="currency-symbol">$</span>
+              <input 
+                type="number" 
+                id="spend-amount" 
+                placeholder="0.00" 
+                min="0.01" 
+                step="0.01"
+                required
+                inputmode="decimal"
+              >
+            </div>
+            <button type="submit" class="btn btn-spend">Log Spend</button>
+          </form>
+        </div>
+
+        <!-- Today's Transactions -->
+        <div class="transactions-section">
+          <h3 class="section-title">Today's Spending</h3>
+          <ul id="transactions-list" class="transactions-list">
+            <li class="empty-state">No spending logged yet</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
