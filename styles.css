@@ -348,6 +348,14 @@ body {
 .spend-form {
   display: flex;
   gap: 12px;
+  align-items: stretch;
+}
+
+.spend-inputs {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .spend-input {
@@ -364,12 +372,35 @@ body {
   font-size: 1.25rem;
 }
 
+.spend-note-input {
+  width: 100%;
+  padding: 10px 14px;
+  font-size: 0.9rem;
+  font-family: var(--font-sans);
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.spend-note-input::placeholder {
+  color: var(--text-muted);
+}
+
+.spend-note-input:focus {
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
 .btn-spend {
   background: var(--positive);
   color: var(--bg-dark);
   padding: 14px 20px;
   font-weight: 600;
   white-space: nowrap;
+  align-self: stretch;
 }
 
 .btn-spend:hover {
@@ -414,9 +445,24 @@ body {
   padding: 24px;
 }
 
+.transaction-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
 .transaction-time {
   font-size: 0.875rem;
   color: var(--text-secondary);
+}
+
+.transaction-note {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .transaction-amount {

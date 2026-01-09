@@ -113,19 +113,28 @@
         <!-- Log Spending -->
         <div class="spend-section">
           <form id="spend-form" class="spend-form">
-            <div class="input-wrapper currency spend-input">
-              <span class="currency-symbol">$</span>
+            <div class="spend-inputs">
+              <div class="input-wrapper currency spend-input">
+                <span class="currency-symbol">$</span>
+                <input 
+                  type="number" 
+                  id="spend-amount" 
+                  placeholder="0.00" 
+                  min="0.01" 
+                  step="0.01"
+                  required
+                  inputmode="decimal"
+                >
+              </div>
               <input 
-                type="number" 
-                id="spend-amount" 
-                placeholder="0.00" 
-                min="0.01" 
-                step="0.01"
-                required
-                inputmode="decimal"
+                type="text" 
+                id="spend-note" 
+                class="spend-note-input"
+                placeholder="What for? (optional)"
+                maxlength="50"
               >
             </div>
-            <button type="submit" class="btn btn-spend">Log Spend</button>
+            <button type="submit" class="btn btn-spend">Log</button>
           </form>
         </div>
 

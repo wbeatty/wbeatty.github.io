@@ -181,6 +181,7 @@
     totalDaysInput: null,
     spendForm: null,
     spendAmountInput: null,
+    spendNoteInput: null,
     resetBtn: null,
     todayAllowance: null,
     daysRemaining: null,
@@ -200,6 +201,7 @@
     elements.totalDaysInput = document.getElementById('total-days');
     elements.spendForm = document.getElementById('spend-form');
     elements.spendAmountInput = document.getElementById('spend-amount');
+    elements.spendNoteInput = document.getElementById('spend-note');
     elements.resetBtn = document.getElementById('reset-btn');
     elements.todayAllowance = document.getElementById('today-allowance');
     elements.daysRemaining = document.getElementById('days-remaining');
@@ -279,12 +281,21 @@
     elements.transactionsList.innerHTML = transactions
       .map((t, index) => `
         <li>
-          <span class="transaction-time">${formatTime(t.timestamp)}</span>
+          <div class="transaction-info">
+            <span class="transaction-time">${formatTime(t.timestamp)}</span>
+            ${t.note ? `<span class="transaction-note">${escapeHtml(t.note)}</span>` : ''}
+          </div>
           <span class="transaction-amount">-$${formatCurrency(t.amount)}</span>
         </li>
       `)
       .reverse()
       .join('');
+  }
+
+  function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
   }
 
   function formatTime(timestamp) {
@@ -358,6 +369,7 @@
     e.preventDefault();
 
     const amount = parseFloat(elements.spendAmountInput.value);
+    const note = elements.spendNoteInput.value.trim();
 
     if (!amount || amount <= 0) {
       elements.spendAmountInput.parentElement.classList.add('shake');
@@ -369,14 +381,16 @@
     state.transactions.push({
       date: getToday(),
       amount,
+      note: note || null,
       timestamp: new Date().toISOString()
     });
 
     saveState();
     updateDashboard();
 
-    // Clear input
+    // Clear inputs
     elements.spendAmountInput.value = '';
+    elements.spendNoteInput.value = '';
 
     // Check if overspent
     const remaining = getRemainingToday();
