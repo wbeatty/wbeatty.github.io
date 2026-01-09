@@ -49,14 +49,19 @@
   // ============================================
 
   function getToday() {
-    return new Date().toISOString().split('T')[0];
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   }
 
   function getDateDiff(startDate, endDate) {
-    const start = new Date(startDate);
-    const end = new Date(endDate);
+    // Parse as local dates to avoid timezone issues
+    const start = new Date(startDate + 'T00:00:00');
+    const end = new Date(endDate + 'T00:00:00');
     const diffTime = end - start;
-    return Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    return Math.round(diffTime / (1000 * 60 * 60 * 24));
   }
 
   function getCurrentDayIndex() {
@@ -102,9 +107,9 @@
 
     // Process each completed day
     for (let i = 0; i < dayIndex; i++) {
-      const date = new Date(state.startDate);
+      const date = new Date(state.startDate + 'T00:00:00');
       date.setDate(date.getDate() + i);
-      const dateStr = date.toISOString().split('T')[0];
+      const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
       
       const spent = getSpentOnDay(dateStr);
       const dayAllowance = state.dailyBase + rollover;
@@ -130,9 +135,9 @@
     let rollover = 0;
 
     for (let i = 0; i < dayIndex; i++) {
-      const date = new Date(state.startDate);
+      const date = new Date(state.startDate + 'T00:00:00');
       date.setDate(date.getDate() + i);
-      const dateStr = date.toISOString().split('T')[0];
+      const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
       
       const spent = getSpentOnDay(dateStr);
       const dayAllowance = state.dailyBase + rollover;
