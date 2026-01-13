@@ -48,6 +48,21 @@
   // Date Utilities
   // ============================================
 
+  function parseLocalDate(dateStr) {
+    // Always treat YYYY-MM-DD as local midnight to avoid timezone issues
+    return new Date(dateStr + 'T00:00:00');
+  }
+
+  function formatDateYYYYMMDD(date) {
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  }
+
+  function addDays(dateStr, daysToAdd) {
+    const date = parseLocalDate(dateStr);
+    date.setDate(date.getDate() + daysToAdd);
+    return formatDateYYYYMMDD(date);
+  }
+
   function getToday() {
     const now = new Date();
     const year = now.getFullYear();
@@ -58,8 +73,8 @@
 
   function getDateDiff(startDate, endDate) {
     // Parse as local dates to avoid timezone issues
-    const start = new Date(startDate + 'T00:00:00');
-    const end = new Date(endDate + 'T00:00:00');
+    const start = parseLocalDate(startDate);
+    const end = parseLocalDate(endDate);
     const diffTime = end - start;
     return Math.round(diffTime / (1000 * 60 * 60 * 24));
   }
@@ -99,32 +114,93 @@
     return getTransactionsForDay(date).reduce((sum, t) => sum + t.amount, 0);
   }
 
-  // Calculate rollover from all previous days
-  function calculateRollover() {
+  function buildDailyTimeline({ includeFuture = true } = {}) {
+    if (!state || !state.startDate || !state.totalDays) return [];
+
     const today = getToday();
+    const timeline = [];
+
+    let rollover = 0;
+    let savingsRunning = 0; // can go negative internally; UI can clamp if desired
+
+    for (let dayIndex = 0; dayIndex < state.totalDays; dayIndex++) {
+      const date = addDays(state.startDate, dayIndex);
+      const isFuture = getDateDiff(today, date) > 0;
+
+      if (!includeFuture && isFuture) break;
+
+      const allowance = state.dailyBase + rollover;
+      const spent = isFuture ? 0 : getSpentOnDay(date);
+      const remaining = allowance - spent;
+
+      let rolloverNext = 0;
+      if (remaining > 0) {
+        // Only count positive rollover as "old money" to preserve
+        const effectiveRollover = Math.max(0, rollover);
+        const oldMoneyRemaining = Math.min(effectiveRollover, remaining);
+        const newMoneyRemaining = Math.max(0, remaining - effectiveRollover);
+        
+        // Old money rolls over completely, new money is split 50/50
+        const savingsFromNewMoney = newMoneyRemaining / 2;
+        const rolloverFromNewMoney = newMoneyRemaining / 2;
+        
+        savingsRunning += savingsFromNewMoney;
+        rolloverNext = oldMoneyRemaining + rolloverFromNewMoney;
+      } else if (remaining < 0) {
+        // Overspent - pull from savings first
+        const deficit = Math.abs(remaining);
+        const pullFromSavings = Math.min(savingsRunning, deficit);
+        savingsRunning -= pullFromSavings;
+        
+        // If savings couldn't cover it, the rest carries over as debt
+        const remainingDeficit = deficit - pullFromSavings;
+        rolloverNext = -remainingDeficit;
+      } else {
+        rolloverNext = 0;
+      }
+
+      timeline.push({
+        date,
+        allowance,
+        spent,
+        remaining,
+        rolloverNext,
+        savingsRunning,
+        savingsDisplay: Math.max(0, savingsRunning),
+        isFuture
+      });
+
+      rollover = rolloverNext;
+    }
+
+    return timeline;
+  }
+
+  // Calculate rollover from all previous days, accounting for savings pull
+  function calculateRollover() {
     const dayIndex = getCurrentDayIndex();
     let rollover = 0;
+    let tempSavings = 0;
 
-    // Process each completed day
     for (let i = 0; i < dayIndex; i++) {
-      const date = new Date(state.startDate + 'T00:00:00');
-      date.setDate(date.getDate() + i);
-      const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-      
+      const dateStr = addDays(state.startDate, i);
       const spent = getSpentOnDay(dateStr);
       const dayAllowance = state.dailyBase + rollover;
       const unspent = dayAllowance - spent;
 
       if (unspent > 0) {
-        // Half rolls over to next day, half goes to savings
-        rollover = unspent / 2;
-        // Note: Savings are accumulated separately below
+        const effectiveRollover = Math.max(0, rollover);
+        const oldMoneyRemaining = Math.min(effectiveRollover, unspent);
+        const newMoneyRemaining = Math.max(0, unspent - effectiveRollover);
+        tempSavings += newMoneyRemaining / 2;
+        rollover = oldMoneyRemaining + (newMoneyRemaining / 2);
       } else {
-        // Overspent - no rollover
-        rollover = 0;
+        const deficit = Math.abs(unspent);
+        const pullFromSavings = Math.min(tempSavings, deficit);
+        tempSavings -= pullFromSavings;
+        rollover = -(deficit - pullFromSavings);
       }
     }
-
     return rollover;
   }
 
@@ -135,28 +211,25 @@
     let rollover = 0;
 
     for (let i = 0; i < dayIndex; i++) {
-      const date = new Date(state.startDate + 'T00:00:00');
-      date.setDate(date.getDate() + i);
-      const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-      
+      const dateStr = addDays(state.startDate, i);
       const spent = getSpentOnDay(dateStr);
       const dayAllowance = state.dailyBase + rollover;
       const unspent = dayAllowance - spent;
 
       if (unspent > 0) {
-        // Half to savings, half rolls over
-        totalSavings += unspent / 2;
-        rollover = unspent / 2;
-      } else if (unspent < 0) {
-        // Overspent - pull from savings
-        totalSavings += unspent; // unspent is negative
-        rollover = 0;
+        const effectiveRollover = Math.max(0, rollover);
+        const oldMoneyRemaining = Math.min(effectiveRollover, unspent);
+        const newMoneyRemaining = Math.max(0, unspent - effectiveRollover);
+        totalSavings += newMoneyRemaining / 2;
+        rollover = oldMoneyRemaining + (newMoneyRemaining / 2);
       } else {
-        rollover = 0;
+        const deficit = Math.abs(unspent);
+        const pullFromSavings = Math.min(totalSavings, deficit);
+        totalSavings -= pullFromSavings;
+        rollover = -(deficit - pullFromSavings);
       }
     }
-
-    return Math.max(0, totalSavings); // Savings can't go negative
+    return totalSavings;
   }
 
   function getTodayAllowance() {
@@ -176,6 +249,7 @@
   const elements = {
     setupScreen: null,
     dashboardScreen: null,
+    calendarScreen: null,
     setupForm: null,
     startAmountInput: null,
     totalDaysInput: null,
@@ -183,6 +257,23 @@
     spendAmountInput: null,
     spendNoteInput: null,
     resetBtn: null,
+    calendarBtn: null,
+    calendarBackBtn: null,
+    calendarPrevBtn: null,
+    calendarNextBtn: null,
+    calendarMonthTitle: null,
+    calendarGrid: null,
+    dayModal: null,
+    dayModalClose: null,
+    dayModalTitle: null,
+    dayModalSubtitle: null,
+    dayAllowance: null,
+    daySpent: null,
+    dayRemaining: null,
+    dayRemainingWrapper: null,
+    dayRolloverNext: null,
+    daySavings: null,
+    dayTransactionsList: null,
     todayAllowance: null,
     daysRemaining: null,
     spentToday: null,
@@ -196,6 +287,7 @@
   function cacheElements() {
     elements.setupScreen = document.getElementById('setup-screen');
     elements.dashboardScreen = document.getElementById('dashboard-screen');
+    elements.calendarScreen = document.getElementById('calendar-screen');
     elements.setupForm = document.getElementById('setup-form');
     elements.startAmountInput = document.getElementById('start-amount');
     elements.totalDaysInput = document.getElementById('total-days');
@@ -203,6 +295,23 @@
     elements.spendAmountInput = document.getElementById('spend-amount');
     elements.spendNoteInput = document.getElementById('spend-note');
     elements.resetBtn = document.getElementById('reset-btn');
+    elements.calendarBtn = document.getElementById('calendar-btn');
+    elements.calendarBackBtn = document.getElementById('calendar-back-btn');
+    elements.calendarPrevBtn = document.getElementById('calendar-prev-btn');
+    elements.calendarNextBtn = document.getElementById('calendar-next-btn');
+    elements.calendarMonthTitle = document.getElementById('calendar-month-title');
+    elements.calendarGrid = document.getElementById('calendar-grid');
+    elements.dayModal = document.getElementById('day-modal');
+    elements.dayModalClose = document.getElementById('day-modal-close');
+    elements.dayModalTitle = document.getElementById('day-modal-title');
+    elements.dayModalSubtitle = document.getElementById('day-modal-subtitle');
+    elements.dayAllowance = document.getElementById('day-allowance');
+    elements.daySpent = document.getElementById('day-spent');
+    elements.dayRemaining = document.getElementById('day-remaining');
+    elements.dayRemainingWrapper = document.getElementById('day-remaining-wrapper');
+    elements.dayRolloverNext = document.getElementById('day-rollover-next');
+    elements.daySavings = document.getElementById('day-savings');
+    elements.dayTransactionsList = document.getElementById('day-transactions-list');
     elements.todayAllowance = document.getElementById('today-allowance');
     elements.daysRemaining = document.getElementById('days-remaining');
     elements.spentToday = document.getElementById('spent-today');
@@ -221,9 +330,33 @@
     return Math.abs(amount).toFixed(2);
   }
 
+  function formatCalendarCurrency(amount) {
+    return Math.floor(Math.abs(amount)).toString();
+  }
+
+  function getCalendarColorClass(remaining, allowance) {
+    if (remaining < 0) {
+      // Negative: red gradient
+      const ratio = Math.min(Math.abs(remaining) / allowance, 1);
+      if (ratio > 0.5) return 'calendar-day--red-high';
+      if (ratio > 0.2) return 'calendar-day--red-medium';
+      return 'calendar-day--red-low';
+    } else {
+      // Positive: green gradient based on how much is remaining
+      const ratio = remaining / allowance;
+      if (ratio > 0.8) return 'calendar-day--green-high';
+      if (ratio > 0.5) return 'calendar-day--green-medium';
+      if (ratio > 0.2) return 'calendar-day--green-low';
+      return 'calendar-day--green-verylow';
+    }
+  }
+
   function showScreen(screenName) {
     elements.setupScreen.classList.toggle('hidden', screenName !== 'setup');
     elements.dashboardScreen.classList.toggle('hidden', screenName !== 'dashboard');
+    if (elements.calendarScreen) {
+      elements.calendarScreen.classList.toggle('hidden', screenName !== 'calendar');
+    }
   }
 
   function updateDashboard() {
@@ -329,6 +462,190 @@
   }
 
   // ============================================
+  // Calendar UI
+  // ============================================
+
+  let calendarTimeline = [];
+  let calendarByDate = new Map();
+  let calendarMonthCursor = null; // YYYY-MM-DD within month
+
+  function getBudgetEndDate() {
+    return addDays(state.startDate, state.totalDays - 1);
+  }
+
+  function getMonthStart(dateStr) {
+    const date = parseLocalDate(dateStr);
+    date.setDate(1);
+    return formatDateYYYYMMDD(date);
+  }
+
+  function addMonths(dateStr, monthsToAdd) {
+    const date = parseLocalDate(dateStr);
+    const d = date.getDate();
+    date.setDate(1);
+    date.setMonth(date.getMonth() + monthsToAdd);
+    // restore day if possible, but clamp to end of month
+    const endOfMonth = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+    date.setDate(Math.min(d, endOfMonth));
+    return formatDateYYYYMMDD(date);
+  }
+
+  function getDaysInMonth(dateStr) {
+    const d = parseLocalDate(dateStr);
+    return new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+  }
+
+  function isDateInBudgetRange(dateStr) {
+    return getDateDiff(state.startDate, dateStr) >= 0 && getDateDiff(dateStr, getBudgetEndDate()) >= 0;
+  }
+
+  function getMonthTitle(dateStr) {
+    const d = parseLocalDate(dateStr);
+    return d.toLocaleDateString([], { month: 'long', year: 'numeric' });
+  }
+
+  function ensureCalendarData() {
+    calendarTimeline = buildDailyTimeline({ includeFuture: true });
+    calendarByDate = new Map(calendarTimeline.map(item => [item.date, item]));
+  }
+
+  function renderCalendar(monthDateStr) {
+    if (!elements.calendarGrid) return;
+
+    const monthStart = getMonthStart(monthDateStr);
+    const monthTitle = getMonthTitle(monthStart);
+    elements.calendarMonthTitle.textContent = monthTitle;
+
+    const firstDay = parseLocalDate(monthStart);
+    const startOffset = firstDay.getDay(); // 0 (Sun) .. 6 (Sat)
+    const daysInMonth = getDaysInMonth(monthStart);
+
+    const today = getToday();
+    const budgetStartMonth = getMonthStart(state.startDate);
+    const budgetEndMonth = getMonthStart(getBudgetEndDate());
+
+    // Limit month navigation to budget range
+    if (elements.calendarPrevBtn) {
+      const canPrev = getDateDiff(budgetStartMonth, monthStart) > 0;
+      elements.calendarPrevBtn.disabled = !canPrev;
+      elements.calendarPrevBtn.classList.toggle('disabled', !canPrev);
+    }
+    if (elements.calendarNextBtn) {
+      const canNext = getDateDiff(monthStart, budgetEndMonth) > 0;
+      elements.calendarNextBtn.disabled = !canNext;
+      elements.calendarNextBtn.classList.toggle('disabled', !canNext);
+    }
+
+    const cells = [];
+
+    // 6 weeks (42 cells) to keep layout stable
+    for (let cellIndex = 0; cellIndex < 42; cellIndex++) {
+      const dayNumber = cellIndex - startOffset + 1;
+      const isInMonth = dayNumber >= 1 && dayNumber <= daysInMonth;
+
+      if (!isInMonth) {
+        cells.push('<button class="calendar-day calendar-day--empty" type="button" aria-hidden="true" tabindex="-1"></button>');
+        continue;
+      }
+
+      const date = parseLocalDate(monthStart);
+      date.setDate(dayNumber);
+      const dateStr = formatDateYYYYMMDD(date);
+
+      const inRange = isDateInBudgetRange(dateStr);
+      const dayData = calendarByDate.get(dateStr) || null;
+      const remaining = dayData ? dayData.remaining : 0;
+      const allowance = dayData ? dayData.allowance : state.dailyBase;
+      const remainingText = dayData ? formatCalendarCurrency(remaining) : '—';
+      const remainingPrefix = dayData && remaining < 0 ? '-$' : '$';
+
+      const isToday = dateStr === today;
+      const isFuture = dayData ? dayData.isFuture : getDateDiff(today, dateStr) > 0;
+
+      const classes = ['calendar-day'];
+      if (!inRange) classes.push('calendar-day--disabled');
+      if (isToday) classes.push('calendar-day--today');
+      if (dayData && remaining < 0) classes.push('calendar-day--negative');
+      if (dayData && remaining >= 0) classes.push('calendar-day--positive');
+      if (inRange && isFuture) classes.push('calendar-day--projected');
+      if (dayData) classes.push(getCalendarColorClass(remaining, allowance));
+
+      cells.push(`
+        <button
+          class="${classes.join(' ')}"
+          type="button"
+          ${inRange ? `data-date="${dateStr}"` : 'disabled'}
+          aria-label="${dateStr}"
+        >
+          <div class="calendar-day-number">${dayNumber}</div>
+          <div class="calendar-day-amount">
+            <span class="calendar-currency">${remainingPrefix}</span>${remainingText}
+          </div>
+        </button>
+      `);
+    }
+
+    elements.calendarGrid.innerHTML = cells.join('');
+  }
+
+  function openDayModal(dateStr) {
+    if (!elements.dayModal) return;
+    const dayData = calendarByDate.get(dateStr);
+    if (!dayData) return;
+
+    elements.dayModalTitle.textContent = parseLocalDate(dateStr).toLocaleDateString([], {
+      weekday: 'long',
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    });
+    elements.dayModalSubtitle.textContent = dayData.isFuture ? 'Projected (assumes $0 spend)' : 'Snapshot';
+
+    elements.dayAllowance.textContent = formatCurrency(dayData.allowance);
+    elements.daySpent.textContent = formatCurrency(dayData.spent);
+    elements.dayRolloverNext.textContent = formatCurrency(dayData.rolloverNext);
+    elements.daySavings.textContent = formatCurrency(dayData.savingsDisplay);
+
+    if (dayData.remaining < 0) {
+      elements.dayRemaining.textContent = formatCurrency(dayData.remaining);
+      elements.dayRemainingWrapper.classList.add('negative');
+      elements.dayRemainingWrapper.querySelector('.currency').textContent = '-$';
+    } else {
+      elements.dayRemaining.textContent = formatCurrency(dayData.remaining);
+      elements.dayRemainingWrapper.classList.remove('negative');
+      elements.dayRemainingWrapper.querySelector('.currency').textContent = '$';
+    }
+
+    // Transactions list (only meaningful for non-future, but show whatever exists)
+    const tx = getTransactionsForDay(dateStr);
+    if (!tx || tx.length === 0) {
+      elements.dayTransactionsList.innerHTML = '<li class="empty-state">No spending logged</li>';
+    } else {
+      elements.dayTransactionsList.innerHTML = tx
+        .map(t => `
+          <li>
+            <div class="transaction-info">
+              <span class="transaction-time">${formatTime(t.timestamp)}</span>
+              ${t.note ? `<span class="transaction-note">${escapeHtml(t.note)}</span>` : ''}
+            </div>
+            <span class="transaction-amount">-$${formatCurrency(t.amount)}</span>
+          </li>
+        `)
+        .reverse()
+        .join('');
+    }
+
+    elements.dayModal.classList.remove('hidden');
+    document.body.classList.add('modal-open');
+  }
+
+  function closeDayModal() {
+    if (!elements.dayModal) return;
+    elements.dayModal.classList.add('hidden');
+    document.body.classList.remove('modal-open');
+  }
+
+  // ============================================
   // Event Handlers
   // ============================================
 
@@ -407,6 +724,52 @@
     }
   }
 
+  function handleOpenCalendar() {
+    if (!state || !state.startDate) return;
+    ensureCalendarData();
+
+    const today = getToday();
+    const inRangeToday = isDateInBudgetRange(today);
+    const initial = inRangeToday ? today : state.startDate;
+    calendarMonthCursor = getMonthStart(initial);
+
+    showScreen('calendar');
+    renderCalendar(calendarMonthCursor);
+  }
+
+  function handleCalendarBack() {
+    closeDayModal();
+    showScreen('dashboard');
+  }
+
+  function handleCalendarPrevMonth() {
+    if (!calendarMonthCursor) return;
+    const next = addMonths(calendarMonthCursor, -1);
+    calendarMonthCursor = getMonthStart(next);
+    renderCalendar(calendarMonthCursor);
+  }
+
+  function handleCalendarNextMonth() {
+    if (!calendarMonthCursor) return;
+    const next = addMonths(calendarMonthCursor, 1);
+    calendarMonthCursor = getMonthStart(next);
+    renderCalendar(calendarMonthCursor);
+  }
+
+  function handleCalendarGridClick(e) {
+    const btn = e.target.closest('button[data-date]');
+    if (!btn) return;
+    const dateStr = btn.getAttribute('data-date');
+    if (!dateStr) return;
+    openDayModal(dateStr);
+  }
+
+  function handleModalOverlayClick(e) {
+    if (e.target === elements.dayModal) {
+      closeDayModal();
+    }
+  }
+
   // ============================================
   // Initialization
   // ============================================
@@ -415,6 +778,20 @@
     elements.setupForm.addEventListener('submit', handleSetupSubmit);
     elements.spendForm.addEventListener('submit', handleSpendSubmit);
     elements.resetBtn.addEventListener('click', handleReset);
+
+    if (elements.calendarBtn) elements.calendarBtn.addEventListener('click', handleOpenCalendar);
+    if (elements.calendarBackBtn) elements.calendarBackBtn.addEventListener('click', handleCalendarBack);
+    if (elements.calendarPrevBtn) elements.calendarPrevBtn.addEventListener('click', handleCalendarPrevMonth);
+    if (elements.calendarNextBtn) elements.calendarNextBtn.addEventListener('click', handleCalendarNextMonth);
+    if (elements.calendarGrid) elements.calendarGrid.addEventListener('click', handleCalendarGridClick);
+    if (elements.dayModalClose) elements.dayModalClose.addEventListener('click', closeDayModal);
+    if (elements.dayModal) elements.dayModal.addEventListener('click', handleModalOverlayClick);
+
+    document.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Escape' && elements.dayModal && !elements.dayModal.classList.contains('hidden')) {
+        closeDayModal();
+      }
+    });
   }
 
   function init() {
