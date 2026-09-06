@@ -17,12 +17,14 @@
       totalDays: 0,
       startDate: null,
       dailyBase: 0,
-      savings: 0,
       transactions: []
     };
   }
 
   function saveState() {
+    if (state) {
+      delete state.savings;
+    }
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   }
 
@@ -31,6 +33,10 @@
     if (saved) {
       try {
         state = JSON.parse(saved);
+        if ('savings' in state) {
+          delete state.savings;
+          saveState();
+        }
         return true;
       } catch (e) {
         console.error('Failed to parse saved state:', e);
@@ -121,7 +127,6 @@
     const timeline = [];
 
     let rollover = 0;
-    let savingsRunning = 0; // can go negative internally; UI can clamp if desired
 
     for (let dayIndex = 0; dayIndex < state.totalDays; dayIndex++) {
       const date = addDays(state.startDate, dayIndex);
@@ -132,32 +137,8 @@
       const allowance = state.dailyBase + rollover;
       const spent = isFuture ? 0 : getSpentOnDay(date);
       const remaining = allowance - spent;
-
-      let rolloverNext = 0;
-      if (remaining > 0) {
-        // Only count positive rollover as "old money" to preserve
-        const effectiveRollover = Math.max(0, rollover);
-        const oldMoneyRemaining = Math.min(effectiveRollover, remaining);
-        const newMoneyRemaining = Math.max(0, remaining - effectiveRollover);
-        
-        // Old money rolls over completely, new money is split 50/50
-        const savingsFromNewMoney = newMoneyRemaining / 2;
-        const rolloverFromNewMoney = newMoneyRemaining / 2;
-        
-        savingsRunning += savingsFromNewMoney;
-        rolloverNext = oldMoneyRemaining + rolloverFromNewMoney;
-      } else if (remaining < 0) {
-        // Overspent - pull from savings first
-        const deficit = Math.abs(remaining);
-        const pullFromSavings = Math.min(savingsRunning, deficit);
-        savingsRunning -= pullFromSavings;
-        
-        // If savings couldn't cover it, the rest carries over as debt
-        const remainingDeficit = deficit - pullFromSavings;
-        rolloverNext = -remainingDeficit;
-      } else {
-        rolloverNext = 0;
-      }
+      // All leftover (or deficit) carries into the next day's available balance.
+      const rolloverNext = remaining;
 
       timeline.push({
         date,
@@ -165,8 +146,6 @@
         spent,
         remaining,
         rolloverNext,
-        savingsRunning,
-        savingsDisplay: Math.max(0, savingsRunning),
         isFuture
       });
 
@@ -176,60 +155,18 @@
     return timeline;
   }
 
-  // Calculate rollover from all previous days, accounting for savings pull
+  // Leftover (or deficit) from all previous days becomes today's available extra.
   function calculateRollover() {
     const dayIndex = getCurrentDayIndex();
     let rollover = 0;
-    let tempSavings = 0;
 
     for (let i = 0; i < dayIndex; i++) {
       const dateStr = addDays(state.startDate, i);
       const spent = getSpentOnDay(dateStr);
       const dayAllowance = state.dailyBase + rollover;
-      const unspent = dayAllowance - spent;
-
-      if (unspent > 0) {
-        const effectiveRollover = Math.max(0, rollover);
-        const oldMoneyRemaining = Math.min(effectiveRollover, unspent);
-        const newMoneyRemaining = Math.max(0, unspent - effectiveRollover);
-        tempSavings += newMoneyRemaining / 2;
-        rollover = oldMoneyRemaining + (newMoneyRemaining / 2);
-      } else {
-        const deficit = Math.abs(unspent);
-        const pullFromSavings = Math.min(tempSavings, deficit);
-        tempSavings -= pullFromSavings;
-        rollover = -(deficit - pullFromSavings);
-      }
+      rollover = dayAllowance - spent;
     }
     return rollover;
-  }
-
-  // Recalculate total savings from all completed days
-  function recalculateSavings() {
-    const dayIndex = getCurrentDayIndex();
-    let totalSavings = 0;
-    let rollover = 0;
-
-    for (let i = 0; i < dayIndex; i++) {
-      const dateStr = addDays(state.startDate, i);
-      const spent = getSpentOnDay(dateStr);
-      const dayAllowance = state.dailyBase + rollover;
-      const unspent = dayAllowance - spent;
-
-      if (unspent > 0) {
-        const effectiveRollover = Math.max(0, rollover);
-        const oldMoneyRemaining = Math.min(effectiveRollover, unspent);
-        const newMoneyRemaining = Math.max(0, unspent - effectiveRollover);
-        totalSavings += newMoneyRemaining / 2;
-        rollover = oldMoneyRemaining + (newMoneyRemaining / 2);
-      } else {
-        const deficit = Math.abs(unspent);
-        const pullFromSavings = Math.min(totalSavings, deficit);
-        totalSavings -= pullFromSavings;
-        rollover = -(deficit - pullFromSavings);
-      }
-    }
-    return totalSavings;
   }
 
   function getTodayAllowance() {
@@ -272,12 +209,10 @@
     dayRemaining: null,
     dayRemainingWrapper: null,
     dayRolloverNext: null,
-    daySavings: null,
     dayTransactionsList: null,
     todayAllowance: null,
     daysRemaining: null,
     spentToday: null,
-    savingsReserve: null,
     remainingToday: null,
     remainingWrapper: null,
     progressFill: null,
@@ -310,12 +245,10 @@
     elements.dayRemaining = document.getElementById('day-remaining');
     elements.dayRemainingWrapper = document.getElementById('day-remaining-wrapper');
     elements.dayRolloverNext = document.getElementById('day-rollover-next');
-    elements.daySavings = document.getElementById('day-savings');
     elements.dayTransactionsList = document.getElementById('day-transactions-list');
     elements.todayAllowance = document.getElementById('today-allowance');
     elements.daysRemaining = document.getElementById('days-remaining');
     elements.spentToday = document.getElementById('spent-today');
-    elements.savingsReserve = document.getElementById('savings-reserve');
     elements.remainingToday = document.getElementById('remaining-today');
     elements.remainingWrapper = document.getElementById('remaining-wrapper');
     elements.progressFill = document.getElementById('progress-fill');
@@ -360,21 +293,15 @@
   }
 
   function updateDashboard() {
-    // Recalculate savings based on history
-    state.savings = recalculateSavings();
-    saveState();
-
     const allowance = getTodayAllowance();
     const spent = getSpentToday();
     const remaining = allowance - spent;
     const daysLeft = getDaysRemaining();
-    const savings = state.savings;
 
     // Update values
     elements.todayAllowance.textContent = formatCurrency(allowance);
     elements.daysRemaining.textContent = daysLeft;
     elements.spentToday.textContent = formatCurrency(spent);
-    elements.savingsReserve.textContent = formatCurrency(savings);
     
     // Remaining can be negative
     if (remaining < 0) {
@@ -604,7 +531,6 @@
     elements.dayAllowance.textContent = formatCurrency(dayData.allowance);
     elements.daySpent.textContent = formatCurrency(dayData.spent);
     elements.dayRolloverNext.textContent = formatCurrency(dayData.rolloverNext);
-    elements.daySavings.textContent = formatCurrency(dayData.savingsDisplay);
 
     if (dayData.remaining < 0) {
       elements.dayRemaining.textContent = formatCurrency(dayData.remaining);
@@ -673,7 +599,6 @@
       totalDays,
       startDate: getToday(),
       dailyBase: startAmount / totalDays,
-      savings: 0,
       transactions: []
     };
 

@@ -326,6 +326,10 @@ body {
   gap: 12px;
 }
 
+.stats-row:has(> :only-child) {
+  grid-template-columns: 1fr;
+}
+
 .card-stat {
   padding: 16px;
 }
