@@ -1,6 +1,7 @@
 // Daily Spend — semester envelope tracker, printed as a receipt.
 // Three envelopes over one ledger: discretionary (weekly rollover),
-// groceries (monthly stipend, spills at cycle close), set-aside purchases.
+// groceries (monthly stipend; leftovers roll into a savings jar at cycle close),
+// set-aside purchases.
 
 (function () {
   'use strict';
@@ -13,6 +14,7 @@
   const CAT_OUT = 'out';
   const CAT_FOOD = 'food';
   const CAT_PLAN = 'plan';
+  const CAT_SAVE = 'save'; // drawn from grocery savings
 
   const GROUNDS = {
     paper: '#E6DFCF',
@@ -307,11 +309,19 @@
     const asideLeft = planned.reduce((s, p) => s + Math.max(0, p.reserve - p.spent), 0);
 
     const cycles = buildCycles();
-    let spill = 0;
+    // Grocery leftovers roll into their own jar when a cycle closes. Nothing else
+    // feeds it; it only drains — by logging against it, or by a grocery overage,
+    // which bites the jar first and discretionary only once the jar is dry.
+    let saved = 0;
+    let overage = 0;
     for (const c of cycles) {
-      if (c.closed) spill += c.funded - c.spent;
-      else if (c.spent > c.funded) spill += c.funded - c.spent; // an overage bites immediately
+      const left = c.funded - c.spent;
+      if (left < 0) overage -= left;          // closed or live, an overage bites immediately
+      else if (c.closed) saved += left;
     }
+    const spentSave = sumTx(state.tx.filter(t => t.cat === CAT_SAVE));
+    const saveLeft = saved - overage - spentSave;
+    const spill = Math.min(0, saveLeft);      // an overdrawn jar is the only thing that reaches discretionary
     const cycle = cycles.find(c => !c.closed) || null;
 
     const discPool = state.pool - reserveTotal + spill;
@@ -333,6 +343,9 @@
       cycles,
       cycle,
       spill,
+      saved,
+      saveLeft,
+      hasSavings: saved > 0 || spentSave > 0,
       discPool,
       discLeft: discPool - spentOut,
       dailyBase,
@@ -487,6 +500,7 @@
     const o = opts || {};
     let tag = outName();
     if (t.cat === CAT_FOOD) tag = 'Groceries';
+    if (t.cat === CAT_SAVE) tag = 'Savings';
     if (t.cat === CAT_PLAN) {
       const p = v.planned.find(x => x.id === t.pid);
       tag = p ? p.name : 'Set aside';
@@ -608,6 +622,13 @@
       out.push(leaderLine('GROCERIES', money(left), { sub: `${toGo}d`, over: left < 0 }));
     }
 
+    if (v.hasSavings) {
+      out.push(leaderLine('GROCERY SAVINGS', money(v.saveLeft), {
+        sub: `${moneyShort(v.saved)} rolled in`,
+        over: v.saveLeft < 0
+      }));
+    }
+
     if (v.planned.length) {
       out.push(leaderLine('SET ASIDE', money(v.asideLeft)));
       const subs = v.planned.map(p => {
@@ -659,6 +680,7 @@
     const tabs = [
       { key: CAT_OUT, pid: null, label: outName() },
       ...(state.stipend ? [{ key: CAT_FOOD, pid: null, label: 'Groceries' }] : []),
+      ...(v.saveLeft > 0 ? [{ key: CAT_SAVE, pid: null, label: 'Savings' }] : []),
       ...v.planned.filter(p => !p.done).map(p => ({ key: CAT_PLAN, pid: p.id, label: p.name }))
     ];
     const html = tabs.map(c => {
@@ -705,6 +727,10 @@
       const left = view.cycle ? view.cycle.funded - view.cycle.spent - amt : -amt;
       over = left < 0;
       text = over ? `groceries ${money(left)} over` : `leaves ${money(left)} of groceries`;
+    } else if (entry.cat === CAT_SAVE) {
+      const left = view.saveLeft - amt;
+      over = left < 0;
+      text = over ? `${money(left)} more than you've saved` : `leaves ${money(left)} saved`;
     } else {
       const p = view.planned.find(x => x.id === entry.pid);
       const left = p ? p.amount - p.spent - amt : -amt;
