@@ -1,295 +1,427 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-ground="paper">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <meta name="theme-color" content="#1a1a2e">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta id="theme-color" name="theme-color" content="#E6DFCF">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>Daily Spend</title>
   <link rel="manifest" href="manifest.json">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Sora:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62.5..125,400..700&family=Martian+Mono:wght@400..600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <div class="app">
-    <!-- Setup Screen -->
-    <section id="setup-screen" class="screen">
-      <div class="setup-container">
-        <h1 class="logo">daily<span>spend</span></h1>
-        <p class="tagline">Know what you can spend. Every day.</p>
-        
-        <form id="setup-form" class="setup-form">
-          <div class="input-group">
-            <label for="start-amount">Starting Budget</label>
-            <div class="input-wrapper currency">
-              <span class="currency-symbol">$</span>
-              <input 
-                type="number" 
-                id="start-amount" 
-                placeholder="500" 
-                min="1" 
-                step="0.01"
-                required
-                inputmode="decimal"
-              >
-            </div>
-          </div>
-          
-          <div class="input-group">
-            <label for="total-days">Number of Days</label>
-            <div class="input-wrapper">
-              <input 
-                type="number" 
-                id="total-days" 
-                placeholder="30" 
-                min="1" 
-                max="365"
-                required
-                inputmode="numeric"
-              >
-              <span class="input-suffix">days</span>
-            </div>
-          </div>
-          
-          <button type="submit" class="btn btn-primary">Start Budget</button>
-        </form>
+
+<!-- ============ SETUP ============ -->
+<section id="setup-screen" class="screen">
+  <main class="page">
+    <div class="head">
+      <button type="button" id="setup-back" class="head-link">New plan</button>
+      <span id="setup-count" class="head-note">1 of 5</span>
+    </div>
+    <div id="setup-pips" class="pips"></div>
+    <div class="rule rule-tight"></div>
+
+    <!-- 1 — the amount -->
+    <div class="step" data-step="1">
+      <h1 class="ask">How much for the<br>whole stretch?</h1>
+      <p class="ask-sub">Going out and big buys. Groceries get their own line in a moment.</p>
+      <div class="figure figure-mid figure-center" id="s1-figure">
+        <span class="sym">$</span><span id="s1-amount">0</span><span class="caret"></span>
       </div>
-    </section>
+      <div class="rule"></div>
+      <div class="lines">
+        <div class="line"><span class="k">SPREADS TO</span><span class="lead"></span><span class="v" id="s1-daily">—</span></div>
+        <div class="line"><span class="k">CALLED</span><span class="lead"></span><input id="s1-name" class="name-in" type="text" value="Going out" maxlength="18" autocomplete="off" autocapitalize="sentences" enterkeyhint="done" aria-label="Category name"></div>
+      </div>
+    </div>
 
-    <!-- Dashboard Screen -->
-    <section id="dashboard-screen" class="screen hidden">
-      <header class="dashboard-header">
-        <h1 class="logo-small">daily<span>spend</span></h1>
-        <div class="header-actions">
-          <button id="calendar-btn" class="btn-icon" title="Calendar">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M8 2v4"/>
-              <path d="M16 2v4"/>
-              <rect width="18" height="18" x="3" y="4" rx="2"/>
-              <path d="M3 10h18"/>
-              <path d="M8 14h.01"/>
-              <path d="M12 14h.01"/>
-              <path d="M16 14h.01"/>
-              <path d="M8 18h.01"/>
-              <path d="M12 18h.01"/>
-              <path d="M16 18h.01"/>
-            </svg>
-          </button>
-          <button id="reset-btn" class="btn-icon" title="Reset Budget">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
-              <path d="M3 3v5h5"/>
-            </svg>
-          </button>
-        </div>
-      </header>
-
-      <div class="dashboard-content">
-        <!-- Today's Allowance Card -->
-        <div class="card card-main">
-          <span class="card-label">Today's Allowance</span>
-          <div class="card-value">
-            <span class="currency">$</span><span id="today-allowance">0.00</span>
-          </div>
-          <div class="card-meta">
-            <span id="days-remaining">0</span> days remaining
+    <!-- 2 — the dates -->
+    <div class="step is-hidden" data-step="2">
+      <h1 class="ask">How long does it<br>have to last?</h1>
+      <p class="ask-sub">Write either end. The daily figure re-prints as you go.</p>
+      <div class="dates">
+        <div class="date-block" id="s2-start-block">
+          <span class="k k-quiet">STARTS</span>
+          <p class="date-dow" id="s2-start-dow">—</p>
+          <div class="date-write">
+            <input id="s2-start-day" class="date-day" inputmode="numeric" maxlength="2" aria-label="Start day">
+            <select id="s2-start-month" class="date-month" aria-label="Start month"></select>
+            <input id="s2-start-year" class="date-year" inputmode="numeric" maxlength="4" aria-label="Start year">
           </div>
         </div>
-
-        <!-- Stats Row -->
-        <div class="stats-row">
-          <div class="card card-stat">
-            <span class="card-label">Spent Today</span>
-            <div class="card-value small">
-              <span class="currency">$</span><span id="spent-today">0.00</span>
-            </div>
+        <div class="date-block" id="s2-end-block">
+          <span class="k k-quiet">ENDS</span>
+          <p class="date-dow" id="s2-end-dow">—</p>
+          <div class="date-write">
+            <input id="s2-end-day" class="date-day" inputmode="numeric" maxlength="2" aria-label="End day">
+            <select id="s2-end-month" class="date-month" aria-label="End month"></select>
+            <input id="s2-end-year" class="date-year" inputmode="numeric" maxlength="4" aria-label="End year">
           </div>
-        </div>
-
-        <!-- Remaining Today -->
-        <div class="card card-remaining">
-          <span class="card-label">Remaining Today</span>
-          <div class="card-value medium" id="remaining-wrapper">
-            <span class="currency">$</span><span id="remaining-today">0.00</span>
-          </div>
-          <div class="progress-bar">
-            <div class="progress-fill" id="progress-fill"></div>
-          </div>
-        </div>
-
-        <!-- Log Spending -->
-        <div class="spend-section">
-          <form id="spend-form" class="spend-form">
-            <div class="spend-inputs">
-              <div class="input-wrapper currency spend-input">
-                <span class="currency-symbol">$</span>
-                <input 
-                  type="number" 
-                  id="spend-amount" 
-                  placeholder="0.00" 
-                  min="0.01" 
-                  step="0.01"
-                  required
-                  inputmode="decimal"
-                >
-              </div>
-              <input 
-                type="text" 
-                id="spend-note" 
-                class="spend-note-input"
-                placeholder="What for? (optional)"
-                maxlength="50"
-              >
-            </div>
-            <button type="submit" class="btn btn-spend">Log</button>
-          </form>
-        </div>
-
-        <!-- Today's Transactions -->
-        <div class="transactions-section">
-          <h3 class="section-title">Today's Spending</h3>
-          <ul id="transactions-list" class="transactions-list">
-            <li class="empty-state">No spending logged yet</li>
-          </ul>
         </div>
       </div>
-    </section>
+      <div class="span-head">
+        <span id="s2-days">—</span><span class="span-rule"></span><span id="s2-weeks">—</span>
+      </div>
+      <div id="s2-bars" class="bars"></div>
+      <div id="s2-months" class="bar-ticks"></div>
+      <div class="rule"></div>
+      <div class="lines">
+        <div class="line"><span class="k" id="s2-over">—</span><span class="lead"></span><span class="v" id="s2-daily">—</span></div>
+      </div>
+    </div>
 
-    <!-- Calendar Screen -->
-    <section id="calendar-screen" class="screen hidden">
-      <!-- 
-        CALENDAR HEADER STYLE OPTIONS:
-        Try these 3 different designs by changing the class name below:
-        
-        Option 1: calendar-header-v1 (Left title + Right back button - traditional balanced layout)
-        Option 2: calendar-header-v2 (Centered content block - modern compact feel)
-        Option 3: calendar-header-v3 (Left icon + Right back button - symmetric minimal design)
-        
-        Current: Using Option 1 (calendar-header-v1)
-      -->
-      <header class="calendar-header-v1">
-        <!-- Option 1 & 3: Logo on left (hidden in Option 3) -->
-        <h1 class="logo-small calendar-logo">daily<span>spend</span></h1>
-        
-        <!-- Option 2: Centered title + back button (comment out above, uncomment below) -->
-        <!-- 
-        <div class="calendar-title">Calendar</div>
-        -->
-        
-        <!-- Option 3 only: Calendar icon on left (uncomment below, comment out title above) -->
-        <!--
-        <div class="calendar-icon-left">
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M8 2v4"/>
-            <path d="M16 2v4"/>
-            <rect width="18" height="18" x="3" y="4" rx="2"/>
-            <path d="M3 10h18"/>
-          </svg>
-        </div>
-        -->
-        
-        <!-- Option 1 & 3: Spacer for grid balance -->
-        <div class="calendar-header-spacer" aria-hidden="true"></div>
-        
-        <!-- All Options: Back button on right -->
-        <button id="calendar-back-btn" class="btn-back" title="Back to dashboard">
-          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M15 18l-6-6 6-6"/>
-          </svg>
-          <span>Back</span>
+    <!-- 3 — groceries -->
+    <div class="step is-hidden" data-step="3">
+      <h1 class="ask">Do groceries come<br>out of that?</h1>
+      <p class="ask-sub">Most people keep food on its own line so a big shop doesn't wreck a Tuesday.</p>
+      <div class="picks">
+        <button type="button" class="opt is-on" data-groceries="split">
+          <span class="box"></span>
+          <span class="opt-body">
+            <span class="opt-title">SEPARATE STIPEND</span>
+            <span class="opt-sub">Groceries have their own pot and never touch the daily number.</span>
+          </span>
         </button>
-      </header>
-
-      <div class="calendar-content">
-        <div class="calendar-month-nav">
-          <button id="calendar-prev-btn" class="btn-icon" title="Previous month">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M15 18l-6-6 6-6"/>
-            </svg>
-          </button>
-          <div class="calendar-month-title" id="calendar-month-title">Month</div>
-          <button id="calendar-next-btn" class="btn-icon" title="Next month">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M9 18l6-6-6-6"/>
-            </svg>
-          </button>
-        </div>
-
-        <div class="calendar-weekdays" aria-hidden="true">
-          <div class="calendar-weekday">Sun</div>
-          <div class="calendar-weekday">Mon</div>
-          <div class="calendar-weekday">Tue</div>
-          <div class="calendar-weekday">Wed</div>
-          <div class="calendar-weekday">Thu</div>
-          <div class="calendar-weekday">Fri</div>
-          <div class="calendar-weekday">Sat</div>
-        </div>
-        <div id="calendar-grid" class="calendar-grid" role="grid" aria-label="Budget calendar"></div>
-      </div>
-    </section>
-  </div>
-
-  <!-- Day Detail Modal -->
-  <div id="day-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="day-modal-title">
-    <div class="modal">
-      <div class="modal-header">
-        <div>
-          <div id="day-modal-title" class="modal-title">Day</div>
-          <div id="day-modal-subtitle" class="modal-subtitle">Snapshot</div>
-        </div>
-        <button id="day-modal-close" class="btn-icon" title="Close">
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M18 6L6 18"/>
-            <path d="M6 6l12 12"/>
-          </svg>
+        <button type="button" class="opt" data-groceries="one">
+          <span class="box"></span>
+          <span class="opt-body">
+            <span class="opt-title">ALL ONE POT</span>
+            <span class="opt-sub">Every purchase draws on the same daily allowance.</span>
+          </span>
         </button>
       </div>
-
-      <div class="modal-body">
-        <div class="stats-row">
-          <div class="card card-stat">
-            <span class="card-label">Allowance</span>
-            <div class="card-value small">
-              <span class="currency">$</span><span id="day-allowance">0.00</span>
-            </div>
-          </div>
-          <div class="card card-stat">
-            <span class="card-label">Spent</span>
-            <div class="card-value small">
-              <span class="currency">$</span><span id="day-spent">0.00</span>
-            </div>
-          </div>
+      <div id="s3-stipend-block">
+        <div class="rule"></div>
+        <p class="eyebrow">Grocery stipend</p>
+        <div class="figure figure-sm" id="s3-figure">
+          <span class="sym">$</span><span id="s3-amount">400</span><span class="caret"></span>
+          <span class="figure-unit">/ month</span>
         </div>
-
-        <div class="card card-remaining">
-          <span class="card-label">Remaining</span>
-          <div class="card-value medium" id="day-remaining-wrapper">
-            <span class="currency">$</span><span id="day-remaining">0.00</span>
-          </div>
-        </div>
-
-        <div class="stats-row">
-          <div class="card card-stat">
-            <span class="card-label">Rollover Next</span>
-            <div class="card-value small positive">
-              <span class="currency">$</span><span id="day-rollover-next">0.00</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="transactions-section">
-          <h3 class="section-title">Transactions</h3>
-          <ul id="day-transactions-list" class="transactions-list">
-            <li class="empty-state">No spending logged</li>
-          </ul>
+        <div id="s3-presets" class="presets">
+          <button type="button" class="preset" data-stipend="250">250</button>
+          <button type="button" class="preset is-on" data-stipend="400">400</button>
+          <button type="button" class="preset" data-stipend="550">550</button>
         </div>
       </div>
     </div>
-  </div>
 
-  <script src="app.js"></script>
+    <!-- 4 — set aside -->
+    <div class="step is-hidden" data-step="4">
+      <h1 class="ask">Anything you're<br>saving up for?</h1>
+      <p class="ask-sub">Carve it out now and it stops competing with your Tuesdays. Skip if nothing comes to mind.</p>
+      <div id="s4-list" class="aside-edit"></div>
+      <button type="button" id="s4-add" class="add-line">
+        <span class="add-box">+</span><span>Add something</span>
+      </button>
+      <div class="rule"></div>
+      <div class="lines">
+        <div class="line is-quiet"><span class="k">SEMESTER</span><span class="lead"></span><span class="v" id="s4-pool">—</span></div>
+        <div class="line is-quiet"><span class="k">LESS SET ASIDE</span><span class="lead"></span><span class="v" id="s4-reserved">—</span></div>
+        <div class="line"><span class="k">SPREADS TO</span><span class="lead"></span><span class="v" id="s4-daily">—</span></div>
+      </div>
+    </div>
+
+    <!-- 5 — the plan, printed -->
+    <div class="step is-hidden" data-step="5">
+      <div class="receipt">
+        <div class="perf perf-top"></div>
+        <div class="receipt-body">
+          <div class="receipt-head">
+            <p class="eyebrow eyebrow-wide">Your plan</p>
+            <p class="eyebrow" id="s5-range">—</p>
+          </div>
+          <div class="rule rule-inset"></div>
+          <div class="lines lines-inset">
+            <div class="line"><span class="k">SEMESTER</span><span class="lead"></span><span class="v" id="s5-pool">—</span></div>
+            <div class="line" id="s5-groceries-line"><span class="k">GROCERIES</span><span class="lead"></span><span class="v" id="s5-groceries">—</span></div>
+            <div class="line"><span class="k">SET ASIDE</span><span class="lead"></span><span class="v" id="s5-reserved">—</span></div>
+            <div class="sublines" id="s5-aside"></div>
+          </div>
+          <div class="rule rule-inset"></div>
+          <div class="receipt-foot">
+            <p class="eyebrow">Daily allowance</p>
+            <div class="figure figure-mid figure-center">
+              <span class="sym">$</span><span id="s5-daily">—</span>
+            </div>
+            <p class="eyebrow" id="s5-note">Unspent days bank forward</p>
+          </div>
+        </div>
+        <div class="perf perf-bottom"></div>
+      </div>
+      <p class="eyebrow eyebrow-center pad-t">You can change any of this later</p>
+    </div>
+  </main>
+
+  <div class="dock">
+    <div id="setup-keypad" class="keypad is-hidden"></div>
+    <button type="button" id="setup-next" class="btn">Continue</button>
+  </div>
+</section>
+
+<!-- ============ HOME ============ -->
+<section id="home-screen" class="screen is-hidden">
+  <main class="page">
+    <div class="head">
+      <button type="button" id="plan-btn" class="head-link">Daily spend · <span id="plan-range"></span></button>
+      <button type="button" id="calendar-btn" class="head-link is-ul">Calendar</button>
+    </div>
+    <div class="rule"></div>
+
+    <p id="today-eyebrow" class="eyebrow"></p>
+    <div id="hero" class="figure">
+      <span class="sym">$</span><span id="hero-amount">0.00</span>
+    </div>
+    <p id="hero-sub" class="hero-sub"></p>
+
+    <div id="respread" class="note is-hidden"></div>
+
+    <div id="week-strip" class="week-strip"></div>
+
+    <div class="rule"></div>
+    <div id="env-lines" class="lines"></div>
+
+    <div class="rule"></div>
+    <p class="eyebrow">Logged today</p>
+    <div id="ledger" class="lines"></div>
+    <p id="ledger-empty" class="empty">Nothing logged yet</p>
+  </main>
+
+  <div class="dock dock-fade">
+    <button type="button" id="log-btn" class="btn">Log expense</button>
+  </div>
+</section>
+
+<!-- ============ CALENDAR ============ -->
+<section id="calendar-screen" class="screen is-hidden">
+  <main class="page">
+    <div class="head">
+      <button type="button" id="cal-back" class="head-link is-ink">&larr; Back</button>
+      <span class="head-note" id="cal-sub">Going out, by day</span>
+    </div>
+    <div class="rule"></div>
+
+    <div class="month-nav">
+      <button type="button" id="cal-prev" class="sq" aria-label="Previous month">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M15 18l-6-6 6-6"/></svg>
+      </button>
+      <span id="cal-title" class="month-name"></span>
+      <button type="button" id="cal-next" class="sq" aria-label="Next month">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>
+      </button>
+    </div>
+
+    <div class="cal-dow" aria-hidden="true"><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span></div>
+    <div id="cal-grid" class="cal-grid"></div>
+
+    <div class="rule"></div>
+    <div class="lines">
+      <div class="line"><span class="k">MONTH TO DATE</span><span class="lead"></span><span class="v" id="cal-mtd">—</span></div>
+      <div class="line"><span class="k">DAILY AVERAGE</span><span class="lead"></span><span class="v" id="cal-avg">—</span></div>
+    </div>
+    <p class="eyebrow eyebrow-note">Tap a day for its items · dashes are days you didn't go out</p>
+  </main>
+</section>
+
+<!-- ============ WEEK CLOSE ============ -->
+<section id="week-screen" class="screen is-hidden">
+  <main class="page">
+    <div class="head">
+      <button type="button" id="week-back" class="head-link is-ink">&larr; Back</button>
+      <span id="week-count" class="head-note"></span>
+    </div>
+
+    <div class="receipt receipt-flat">
+      <div class="perf perf-top"></div>
+      <div class="receipt-body">
+        <p id="week-range" class="eyebrow"></p>
+        <div class="figure figure-mid">
+          <span class="sym">$</span><span id="week-figure">0.00</span>
+        </div>
+        <p id="week-figure-sub" class="eyebrow eyebrow-loose"></p>
+
+        <div class="rule rule-inset"></div>
+        <div id="week-days" class="lines lines-inset"></div>
+
+        <div class="rule rule-inset"></div>
+        <div class="lines lines-inset">
+          <div class="line"><span class="k">ALLOWANCE</span><span class="lead"></span><span class="v" id="week-allowance">—</span></div>
+          <div class="line"><span class="k">SPENT</span><span class="lead"></span><span class="v" id="week-spent">—</span></div>
+          <div class="line line-total"><span class="k" id="week-total-k">BANKED</span><span class="lead"></span><span class="v" id="week-banked">—</span></div>
+        </div>
+        <p id="week-note" class="eyebrow eyebrow-loose"></p>
+      </div>
+      <div class="perf perf-bottom"></div>
+    </div>
+
+    <div class="week-steps">
+      <button type="button" id="week-prev" class="text-step">&larr; Earlier</button>
+      <button type="button" id="week-next" class="text-step">Later &rarr;</button>
+    </div>
+  </main>
+</section>
+
+<!-- ============ EDIT PLAN ============ -->
+<section id="plan-screen" class="screen is-hidden">
+  <main class="page">
+    <div class="head">
+      <button type="button" id="plan-back" class="head-link is-ink">&larr; Back</button>
+      <span class="head-note">Edit plan</span>
+    </div>
+    <div class="rule"></div>
+
+    <p class="eyebrow">The stretch</p>
+    <div class="rows">
+      <div class="row">
+        <span class="k k-quiet">POOL</span><span class="lead"></span>
+        <span class="pick"><span id="p-pool-text">—</span><input type="number" id="p-pool" inputmode="decimal" min="1" step="1"></span>
+      </div>
+      <div class="row">
+        <span class="k k-quiet">ENDS</span><span class="lead"></span>
+        <span class="pick"><span id="p-end-text">—</span><input type="date" id="p-end"></span>
+      </div>
+      <div class="row">
+        <span class="k k-quiet">CALLED</span><span class="lead"></span>
+        <input id="p-name" class="name-in" type="text" maxlength="18" autocomplete="off" autocapitalize="sentences" enterkeyhint="done" aria-label="Category name">
+      </div>
+      <div class="row is-quiet">
+        <span class="k">STARTED</span><span class="lead"></span><span class="v" id="p-start">—</span>
+      </div>
+    </div>
+
+    <p class="eyebrow pad-t">Groceries</p>
+    <div class="rows">
+      <div class="row">
+        <span class="k k-quiet">STIPEND</span><span class="lead"></span>
+        <span class="pick"><span id="p-stipend-text">—</span><input type="number" id="p-stipend" inputmode="decimal" min="0" step="10"></span>
+      </div>
+      <div class="row">
+        <span class="k k-quiet">RESETS ON</span><span class="lead"></span>
+        <span class="pick"><span id="p-day-text">—</span><input type="number" id="p-day" inputmode="numeric" min="1" max="28" step="1"></span>
+      </div>
+    </div>
+
+    <p class="eyebrow pad-t">Set aside</p>
+    <div id="p-aside" class="aside-edit"></div>
+    <button type="button" id="p-add" class="add-line">
+      <span class="add-box">+</span><span>Add something</span>
+    </button>
+
+    <div class="rule"></div>
+    <div class="line line-total"><span class="k">NEW DAILY</span><span class="lead"></span><span class="v" id="p-daily">—</span></div>
+    <p class="eyebrow eyebrow-note">Edits re-spread from today · logged days stay as they are</p>
+
+    <p class="eyebrow pad-t">Ground</p>
+    <div class="presets">
+      <button type="button" class="preset" data-set-ground="paper">Paper</button>
+      <button type="button" class="preset" data-set-ground="carbon">Carbon</button>
+    </div>
+
+    <div class="danger">
+      <button type="button" id="p-reset" class="btn-danger">Start a new plan</button>
+      <p class="fine">Clears this plan and everything logged. Can't be undone.</p>
+    </div>
+  </main>
+</section>
+
+<!-- ============ LOG SHEET ============ -->
+<div id="sheet" class="scrim">
+  <div class="tray" role="dialog" aria-modal="true" aria-label="Log an expense">
+    <div class="perf perf-top"></div>
+    <div class="tray-body">
+      <div class="tray-head">
+        <button type="button" id="sheet-cancel" class="tray-act is-quiet">Cancel</button>
+        <span class="tray-title">New expense</span>
+        <span class="tray-act tray-act-ghost" aria-hidden="true">Cancel</span>
+      </div>
+      <div class="rule rule-tight"></div>
+
+      <div class="figure figure-mid figure-center pad-figure" id="sheet-amount-figure">
+        <span class="sym">$</span><span id="sheet-amount">0</span><span class="caret"></span>
+      </div>
+      <p id="sheet-consequence" class="eyebrow eyebrow-center">Pick an amount</p>
+
+      <div id="sheet-cats" class="tabs"></div>
+      <label class="note-row" for="sheet-note">
+        <span class="note-k">Label</span>
+        <input id="sheet-note" class="note-in" type="text" placeholder="optional" maxlength="40" autocomplete="off" autocapitalize="sentences" enterkeyhint="done">
+      </label>
+      <div id="sheet-keypad" class="keypad"></div>
+      <button type="button" id="sheet-save" class="btn btn-log" disabled>Enter an amount</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ DAY SHEET ============ -->
+<div id="day-sheet" class="scrim">
+  <div class="tray" role="dialog" aria-modal="true" aria-label="Day detail">
+    <div class="perf perf-top"></div>
+    <div class="tray-body">
+      <div class="tray-head">
+        <span id="day-title" class="tray-act"></span>
+        <button type="button" id="day-close" class="tray-act is-quiet">Close</button>
+      </div>
+      <div class="rule rule-tight"></div>
+      <div class="stats">
+        <div class="stat"><span class="stat-k">Allowance</span><span class="stat-v" id="day-allowance">—</span></div>
+        <div class="stat"><span class="stat-k">Spent</span><span class="stat-v" id="day-spent">—</span></div>
+        <div class="stat" id="day-third"><span class="stat-k" id="day-third-k">Left</span><span class="stat-v" id="day-third-v">—</span></div>
+      </div>
+      <div class="rule"></div>
+      <div id="day-list" class="lines"></div>
+      <div class="rule"></div>
+      <p class="eyebrow eyebrow-note" id="day-note">Tap × to remove an item · groceries sit outside the day's allowance</p>
+    </div>
+  </div>
+</div>
+
+<!-- ============ WEEK RECAP ============ -->
+<div id="recap-sheet" class="scrim">
+  <div class="tray tray-panel" role="dialog" aria-modal="true" aria-label="Week closed">
+    <div class="perf perf-top perf-panel"></div>
+    <div class="tray-body">
+      <p id="recap-range" class="eyebrow eyebrow-wide eyebrow-center"></p>
+      <div class="figure figure-mid figure-center pad-figure-sm">
+        <span class="sym">$</span><span id="recap-figure">0.00</span>
+      </div>
+      <p id="recap-sub" class="eyebrow eyebrow-center eyebrow-loose"></p>
+
+      <div class="rule"></div>
+      <div id="recap-days" class="lines"></div>
+
+      <div class="rule"></div>
+      <div class="lines">
+        <div class="line is-quiet"><span class="k">ALLOWANCE</span><span class="lead"></span><span class="v" id="recap-allowance">—</span></div>
+        <div class="line is-quiet"><span class="k">SPENT</span><span class="lead"></span><span class="v" id="recap-spent">—</span></div>
+        <div class="line is-quiet"><span class="k">CARRIED IN</span><span class="lead"></span><span class="v" id="recap-carried">—</span></div>
+        <div class="line line-total"><span class="k">BANK NOW</span><span class="lead"></span><span class="v" id="recap-bank">—</span></div>
+      </div>
+      <p id="recap-note" class="eyebrow eyebrow-center eyebrow-loose"></p>
+      <button type="button" id="recap-ok" class="btn btn-inline">Start the week</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ CONFIRM ============ -->
+<div id="confirm-sheet" class="scrim">
+  <div class="tray tray-panel" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title">
+    <div class="perf perf-top perf-panel"></div>
+    <div class="tray-body">
+      <h2 id="confirm-title" class="ask ask-sm"></h2>
+      <p id="confirm-body" class="ask-sub"></p>
+      <div class="confirm-acts">
+        <button type="button" id="confirm-cancel" class="btn-quiet">Cancel</button>
+        <button type="button" id="confirm-ok" class="btn-danger"></button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+<script src="app.js"></script>
 </body>
 </html>
