@@ -185,12 +185,10 @@
           t => t.cat === CAT_FOOD && diffDays(rangeStart, t.date) >= 0 && diffDays(t.date, rangeEnd) >= 0
         )
       );
-      // A cycle clipped by the start or end of the plan only gets its share of the stipend.
-      const fullDays = diffDays(start, next);
-      const liveDays = diffDays(rangeStart, rangeEnd) + 1;
-      const funded = (idx === 0 && state.opening != null)
-        ? state.opening
-        : state.stipend * Math.max(0, Math.min(1, liveDays / fullDays));
+      // The stipend arrives in full each cycle, even one the plan starts or ends
+      // mid-way through. A mid-month start can override the first cycle with
+      // what's actually still in hand (state.opening).
+      const funded = (idx === 0 && state.opening != null) ? state.opening : state.stipend;
       idx++;
       cycles.push({
         start: rangeStart,
@@ -622,11 +620,11 @@
       out.push(leaderLine('GROCERIES', money(left), { sub: `${toGo}d`, over: left < 0 }));
     }
 
-    if (v.hasSavings) {
-      out.push(leaderLine('GROCERY SAVINGS', money(v.saveLeft), {
-        sub: `${moneyShort(v.saved)} rolled in`,
-        over: v.saveLeft < 0
-      }));
+    if (state.stipend) {
+      const sub = v.hasSavings
+        ? `${moneyShort(v.saved)} rolled in`
+        : (v.cycle ? `rolls in ${fmtShort(addDays(v.cycle.end, 1))}` : '');
+      out.push(leaderLine('GROCERY SAVINGS', money(v.saveLeft), { sub, over: v.saveLeft < 0, quiet: !v.hasSavings }));
     }
 
     if (v.planned.length) {
@@ -1021,6 +1019,13 @@
     $('p-stipend').value = state.stipend || '';
     $('p-day-text').textContent = ordinal(state.stipendDay);
     $('p-day').value = state.stipendDay;
+    const first = v.cycles[0];
+    const firstOpen = first && !first.closed;
+    $('p-opening-row').classList.toggle('is-hidden', !state.stipend || !firstOpen);
+    if (firstOpen) {
+      $('p-opening-text').textContent = money(first.funded);
+      $('p-opening').value = first.funded;
+    }
 
     $('p-aside').innerHTML = asideEditRows(v.planned, true);
     $('p-daily').textContent = `${moneyShort(planBaseDaily)} → ${moneyShort(v.dailyBase)}`;
@@ -1047,6 +1052,12 @@
 
     const day = parseInt($('p-day').value, 10);
     state.stipendDay = Math.min(28, Math.max(1, isFinite(day) ? day : 1));
+
+    // Only store an override when it differs from the stipend; otherwise stipend edits keep flowing through.
+    const opening = parseFloat($('p-opening').value);
+    if (!$('p-opening-row').classList.contains('is-hidden') && isFinite(opening) && opening >= 0) {
+      state.opening = opening === state.stipend ? null : opening;
+    }
 
     $('p-aside').querySelectorAll('.aside-row').forEach(r => {
       const p = state.planned.find(x => x.id === r.dataset.id);
@@ -1517,7 +1528,7 @@
 
     // — Plan
     $('plan-back').addEventListener('click', () => { show('home'); render(); });
-    ['p-pool', 'p-name', 'p-end', 'p-stipend', 'p-day'].forEach(id => {
+    ['p-pool', 'p-name', 'p-end', 'p-stipend', 'p-day', 'p-opening'].forEach(id => {
       $(id).addEventListener('change', commitPlanField);
     });
     $('p-aside').addEventListener('change', commitPlanField);
