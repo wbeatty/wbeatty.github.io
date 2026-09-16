@@ -948,6 +948,14 @@ body.keypad-up #s3-figure .caret,
   font-variant-numeric: tabular-nums;
 }
 
+.pick.is-editing > span:first-child {
+  visibility: hidden;
+}
+
+.pick > span:first-child {
+  pointer-events: none;
+}
+
 .pick input {
   position: absolute;
   inset: 0;
@@ -961,10 +969,7 @@ body.keypad-up #s3-figure .caret,
   font: inherit;
   text-align: inherit;
   -webkit-appearance: none;
-}
-
-.pick.is-editing > span:first-child {
-  visibility: hidden;
+  z-index: 1;
 }
 
 .pick.is-editing input {
