@@ -1063,13 +1063,41 @@
       const p = state.planned.find(x => x.id === r.dataset.id);
       if (!p) return;
       const name = r.querySelector('.a-name').value.trim();
-      const amt = parseFloat(r.querySelector('.a-amt').value);
+      const rawAmt = r.querySelector('.a-amt').value.trim();
+      const amt = parseFloat(rawAmt);
       if (name) p.name = name;
-      if (isFinite(amt) && amt >= 0) p.amount = amt;
+      // Empty clears to 0; otherwise keep the typed amount (including 0).
+      if (rawAmt === '') p.amount = 0;
+      else if (isFinite(amt) && amt >= 0) p.amount = amt;
     });
 
     saveState();
     renderPlan();
+  }
+
+  // .pick fields show a formatted label under an invisible native control.
+  // Reveal the control while focused and select its value so typing replaces
+  // instead of appending to a caret the user cannot see.
+  function bindPickEditors(ids) {
+    ids.forEach(id => {
+      const el = $(id);
+      const pick = el && el.closest('.pick');
+      if (!pick) return;
+      el.addEventListener('focus', () => {
+        pick.classList.add('is-editing');
+        if (el.type === 'number') {
+          // Defer select so mobile browsers keep the selection after focusing.
+          requestAnimationFrame(() => {
+            try { el.select(); } catch (_) { /* some WebKits reject select on number */ }
+          });
+        }
+      });
+      el.addEventListener('blur', () => pick.classList.remove('is-editing'));
+      // Keep select-all from being cleared by the focusing mouseup (numbers only).
+      if (el.type === 'number') {
+        el.addEventListener('mouseup', e => e.preventDefault());
+      }
+    });
   }
 
   // Dropping a set-aside line must not lose the money already spent against it —
@@ -1531,7 +1559,16 @@
     ['p-pool', 'p-name', 'p-end', 'p-stipend', 'p-day', 'p-opening'].forEach(id => {
       $(id).addEventListener('change', commitPlanField);
     });
+    bindPickEditors(['p-pool', 'p-end', 'p-stipend', 'p-day', 'p-opening']);
     $('p-aside').addEventListener('change', commitPlanField);
+    // Select-all on focus so set-aside amounts replace on the first keystroke.
+    $('p-aside').addEventListener('focusin', e => {
+      const amt = e.target.closest('.a-amt');
+      if (!amt) return;
+      requestAnimationFrame(() => {
+        try { amt.select(); } catch (_) { /* ignore */ }
+      });
+    });
     $('p-aside').addEventListener('click', e => {
       const b = e.target.closest('[data-drop]');
       if (b) dropPlanned(b.dataset.drop);

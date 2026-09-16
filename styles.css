@@ -937,7 +937,8 @@ body.keypad-up #s3-figure .caret,
 .row .lead { flex: 1; border-bottom: 1px dotted var(--lead); transform: translateY(-3px); }
 .row .v { white-space: nowrap; flex-shrink: 0; }
 
-/* Formatted value with an invisible native picker over it. */
+/* Formatted value with an invisible native control over it.
+   On focus the raw input takes over so typing replaces what you see. */
 .pick {
   position: relative;
   white-space: nowrap;
@@ -945,6 +946,14 @@ body.keypad-up #s3-figure .caret,
   border-bottom: 1.5px solid var(--ink);
   padding-bottom: 2px;
   font-variant-numeric: tabular-nums;
+}
+
+.pick.is-editing > span:first-child {
+  visibility: hidden;
+}
+
+.pick > span:first-child {
+  pointer-events: none;
 }
 
 .pick input {
@@ -956,7 +965,17 @@ body.keypad-up #s3-figure .caret,
   border: 0;
   padding: 0;
   background: none;
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
   -webkit-appearance: none;
+  z-index: 1;
+}
+
+.pick.is-editing input {
+  opacity: 1;
+  /* Keep the hit target from collapsing while the label is hidden. */
+  min-width: 4ch;
 }
 
 .span-head {
