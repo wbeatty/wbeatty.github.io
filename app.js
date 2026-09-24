@@ -105,7 +105,9 @@
       opening: null,
       planned: [],
       tx: [],
-      recapSeen: null
+      recapSeen: null,
+      cushion: null, // money in the account that isn't part of the plan; null until first bank check
+      audits: []
     };
   }
 
@@ -330,6 +332,14 @@
 
     const spentOut = sumTx(state.tx.filter(t => t.cat === CAT_OUT));
 
+    // What the bank should read: the pool sits in the account from day one, each
+    // stipend lands on its cycle's first day, and every logged item came out of it.
+    const landed = cycles.filter(c => diffDays(c.start, today) >= 0);
+    const stipendsIn = landed.reduce((s, c) => s + c.funded, 0);
+    const spentAll = sumTx(state.tx);
+    const cushion = state.cushion || 0;
+    const bankExpected = state.pool + stipendsIn + cushion - spentAll;
+
     return {
       today,
       totalDays,
@@ -352,6 +362,11 @@
       spentToday: spentOn(today, CAT_OUT),
       spentOut,
       banked: tl.banked,
+      stipendsIn,
+      stipendsCount: landed.length,
+      spentAll,
+      cushion,
+      bankExpected,
       weekNo: Math.floor(diffDays(mondayOf(state.startDate), mondayOf(today)) / 7) + 1,
       weekTotal: tl.weeks.length
     };
@@ -380,6 +395,10 @@
 
   function money(n) {
     return Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  function moneySigned(n) {
+    return `${n < 0 ? '−' : ''}${money(n)}`;
   }
 
   function moneyShort(n) {
@@ -436,9 +455,11 @@
     return el[id];
   }
 
-  const SCREENS = ['setup', 'home', 'calendar', 'week', 'plan'];
+  const SCREENS = ['setup', 'home', 'calendar', 'week', 'plan', 'audit'];
+  let current = null;
 
   function show(screen) {
+    current = screen;
     SCREENS.forEach(s => {
       const node = $(`${s}-screen`);
       if (node) node.classList.toggle('is-hidden', s !== screen);
@@ -547,6 +568,8 @@
     renderEnvelopes(v);
     renderLedger(v);
     renderCats(v);
+    renderAuditLine(v);
+    if (current === 'audit') renderAudit();
   }
 
   // "of 16.60 allowed · 52.40 banked" — the bank is a win counter, not spendable,
@@ -740,10 +763,13 @@
     renderCats(view);
   }
 
-  function openTray() {
+  // A prefill (from a bank check) arrives with the amount typed, so the tray
+  // opens on the category tabs and label rather than the keypad.
+  function openTray(prefill) {
     if (!state || !view) return;
-    entry = { raw: '', cat: CAT_OUT, pid: null, keypad: true };
-    $('sheet-note').value = '';
+    const p = prefill || {};
+    entry = { raw: p.raw || '', cat: CAT_OUT, pid: null, keypad: !p.raw };
+    $('sheet-note').value = p.note || '';
     $('sheet-cats').dataset.sig = '';
     renderTray();
     $('sheet').classList.add('is-open');
@@ -976,6 +1002,190 @@
     saveState();
     $('recap-sheet').classList.remove('is-open');
     document.body.classList.remove('is-locked');
+  }
+
+  // ============================================
+  // Bank check
+  // ============================================
+
+  // The app's balance is a simulation; the bank is the truth. A check compares
+  // the two, and any gap is either something unlogged or money outside the plan.
+
+  function lastAudit() {
+    const list = state.audits || [];
+    return list.length ? list[list.length - 1] : null;
+  }
+
+  function checkedAgo(a) {
+    const d = diffDays(a.date, getToday());
+    if (d <= 0) return 'checked today';
+    return `checked ${d}d ago`;
+  }
+
+  function renderAuditLine(v) {
+    const a = lastAudit();
+    const sub = a ? checkedAgo(a) : 'unchecked';
+    $('audit-line').innerHTML = `
+      <span class="k">BANK<span class="k-sub"> · ${escapeHtml(sub)}</span></span>
+      <span class="lead"></span>
+      <span class="v">${moneySigned(v.bankExpected)}</span>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>`;
+  }
+
+  function auditActual() {
+    const raw = $('audit-actual').value.replace(/[$,\s]/g, '').replace('−', '-');
+    if (raw === '' || raw === '-') return null;
+    const n = parseFloat(raw);
+    return isFinite(n) ? Math.round(n * 100) / 100 : null;
+  }
+
+  function auditDiff(v) {
+    const actual = auditActual();
+    if (actual == null) return null;
+    return Math.round((actual - v.bankExpected) * 100) / 100;
+  }
+
+  function renderAudit() {
+    const v = view;
+    $('audit-eyebrow').textContent = `Your bank should read · ${fmtDayShort(v.today)}`;
+    $('audit-expected').textContent = moneySigned(v.bankExpected);
+
+    const lines = [leaderLine('POOL', money(state.pool), { quiet: true })];
+    if (state.stipend) {
+      lines.push(leaderLine('GROCERY STIPENDS', money(v.stipendsIn), {
+        quiet: true,
+        sub: `${v.stipendsCount} in`
+      }));
+    }
+    lines.push(leaderLine('LOGGED', `− ${money(v.spentAll)}`, {
+      quiet: true,
+      sub: `${state.tx.length} item${state.tx.length === 1 ? '' : 's'}`
+    }));
+    const cushionSub = state.cushion == null ? '<span class="k-sub"> · unset</span>' : '';
+    lines.push(`
+      <div class="line is-quiet">
+        <span class="k">OTHER MONEY${cushionSub}</span>
+        <span class="lead"></span>
+        <span class="pick"><span>${moneySigned(v.cushion)}</span><input type="number" id="audit-cushion" inputmode="decimal" step="0.01" value="${v.cushion}" aria-label="Money in the account outside the plan"></span>
+      </div>`);
+    lines.push(leaderLine('SHOULD READ', moneySigned(v.bankExpected), { total: true }));
+    $('audit-lines').innerHTML = lines.join('');
+
+    // Card charges take a day or two to post, so a fresh log can make the bank look rich.
+    const yesterday = addDays(v.today, -1);
+    const recent = sumTx(state.tx.filter(t => t.date === v.today || t.date === yesterday));
+    $('audit-pending').textContent = recent > 0
+      ? `${money(recent)} logged since yesterday · if it hasn't posted yet, your bank reads that much higher`
+      : '';
+    $('audit-pending').classList.toggle('is-hidden', !(recent > 0));
+
+    renderAuditResult();
+    renderAuditHistory();
+  }
+
+  function renderAuditResult() {
+    const v = view;
+    const diff = auditDiff(v);
+    const box = $('audit-result');
+    if (diff == null) {
+      box.classList.add('is-hidden');
+      return;
+    }
+    box.classList.remove('is-hidden');
+
+    const gap = money(diff);
+    const verdict = $('audit-verdict');
+    const alt = $('audit-alt');
+    const leave = $('audit-leave');
+    let primary;
+
+    if (Math.abs(diff) < 0.005) {
+      verdict.className = 'audit-verdict';
+      verdict.innerHTML = 'Matches to the cent. The plan and your bank agree.';
+      primary = { label: 'Record check', act: 'record' };
+      alt.classList.add('is-hidden');
+      leave.classList.add('is-hidden');
+    } else if (diff < 0) {
+      verdict.className = 'audit-verdict note';
+      verdict.innerHTML = `Your bank has <strong>$${gap} less</strong> than the plan expects. Something probably went unlogged — log it and the plan re-spreads around it.`;
+      primary = { label: `Log the $${gap}`, act: 'log' };
+      alt.textContent = 'Adjust baseline';
+      alt.dataset.act = 'outside';
+      leave.textContent = 'Record as is';
+      alt.classList.remove('is-hidden');
+      leave.classList.remove('is-hidden');
+    } else {
+      const first = state.cushion == null;
+      verdict.className = 'audit-verdict note';
+      verdict.innerHTML = first
+        ? `Your bank has <strong>$${gap} more</strong> than the plan. On a first check that's usually money that was never part of it — count it outside the plan and future checks line up.`
+        : `Your bank has <strong>$${gap} more</strong> than the plan expects. A charge may still be pending, or money came in that isn't part of the plan.`;
+      primary = { label: 'Count it outside the plan', act: 'outside' };
+      alt.classList.add('is-hidden');
+      leave.textContent = 'Pending · record as is';
+      leave.classList.remove('is-hidden');
+    }
+
+    $('audit-primary').textContent = primary.label;
+    $('audit-primary').dataset.act = primary.act;
+  }
+
+  function renderAuditHistory() {
+    const list = (state.audits || []).slice(-6).reverse();
+    $('audit-history-wrap').classList.toggle('is-hidden', !list.length);
+    $('audit-history').innerHTML = list.map(a => {
+      const d = Math.round((a.actual - a.expected) * 100) / 100;
+      let val;
+      if (Math.abs(d) < 0.005) val = 'matched';
+      else val = `${d < 0 ? '−' : '+'}${money(d)}`;
+      const sub = a.fix === 'outside' ? 'baseline moved' : `read ${moneySigned(a.actual)}`;
+      return leaderLine(fmtShort(a.date).toUpperCase(), val, { quiet: true, sub });
+    }).join('');
+  }
+
+  function recordAudit(fix) {
+    const actual = auditActual();
+    if (actual == null) return;
+    state.audits = state.audits || [];
+    state.audits.push({
+      date: getToday(),
+      ts: Date.now(),
+      expected: Math.round(view.bankExpected * 100) / 100,
+      actual,
+      fix: fix || null
+    });
+    if (state.audits.length > 40) state.audits = state.audits.slice(-40);
+    if (state.cushion == null) state.cushion = 0; // any recorded check sets the baseline
+  }
+
+  function auditAct(act) {
+    const diff = auditDiff(view);
+    if (diff == null) return;
+    if (act === 'log') {
+      openTray({ raw: String(Math.abs(diff)), note: 'Unlogged · bank check' });
+      return;
+    }
+    if (act === 'outside') {
+      recordAudit('outside');
+      state.cushion = Math.round(((state.cushion || 0) + diff) * 100) / 100;
+      saveState();
+      $('audit-actual').value = '';
+      render();
+      toast('Baseline moved · plan and bank agree');
+      return;
+    }
+    recordAudit(null);
+    saveState();
+    $('audit-actual').value = '';
+    render();
+    toast('Check recorded');
+  }
+
+  function openAudit() {
+    render();
+    $('audit-actual').value = '';
+    show('audit');
+    renderAudit();
   }
 
   // ============================================
@@ -1475,7 +1685,7 @@
     });
 
     // — Home
-    $('log-btn').addEventListener('click', openTray);
+    $('log-btn').addEventListener('click', () => openTray());
     $('calendar-btn').addEventListener('click', () => {
       render();
       calMonth = clampDate(getToday(), state.startDate, state.endDate).slice(0, 8) + '01';
@@ -1494,6 +1704,24 @@
     $('ledger').addEventListener('click', e => {
       const b = e.target.closest('[data-del]');
       if (b) deleteTx(b.dataset.del);
+    });
+
+    // — Bank check
+    $('audit-line').addEventListener('click', openAudit);
+    $('audit-back').addEventListener('click', () => { show('home'); render(); });
+    $('audit-actual').addEventListener('input', renderAuditResult);
+    $('audit-actual').addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); }
+    });
+    ['audit-primary', 'audit-alt', 'audit-leave'].forEach(id => {
+      $(id).addEventListener('click', e => auditAct(e.currentTarget.dataset.act));
+    });
+    $('audit-lines').addEventListener('change', e => {
+      if (e.target.id !== 'audit-cushion') return;
+      const n = parseFloat(e.target.value);
+      state.cushion = isFinite(n) ? Math.round(n * 100) / 100 : 0;
+      saveState();
+      render();
     });
 
     // — Log tray

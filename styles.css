@@ -394,6 +394,33 @@ body.keypad-up #s3-figure .caret,
 
 .wcell.is-over .d { color: var(--on-accent); }
 
+/* The bank-check row — a leader line you can tap. */
+.line-link {
+  width: 100%;
+  margin-top: 13px;
+  font-size: 11px;
+}
+
+.line-link svg { width: 9px; height: 9px; flex-shrink: 0; align-self: center; }
+.line-link:active { color: var(--ink); }
+
+/* ── Bank check ────────────────────────────────────────── */
+
+.audit-in { margin: 14px 0 0; }
+#audit-lines .k { flex-shrink: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.audit-in .note-k { font-size: 14px; letter-spacing: 0; }
+
+.audit-verdict {
+  margin: 16px 0 0;
+  font-size: 10.5px;
+  line-height: 1.65;
+}
+
+.audit-verdict strong { font-weight: 600; }
+.audit-verdict.note { display: block; margin-top: 16px; }
+.audit-verdict + .btn-inline { margin-top: 14px; }
+.pad-lines { margin-top: 14px; }
+
 /* ── Buttons ───────────────────────────────────────────── */
 
 .dock {

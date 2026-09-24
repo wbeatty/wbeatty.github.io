@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62.5..125,400..700&family=Martian+Mono:wght@400..600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=20260916b">
+  <link rel="stylesheet" href="styles.css?v=20260924a">
 </head>
 <body>
 
@@ -183,6 +183,7 @@
 
     <div class="rule"></div>
     <div id="env-lines" class="lines"></div>
+    <button type="button" id="audit-line" class="line line-link is-quiet"></button>
 
     <div class="rule"></div>
     <p class="eyebrow">Logged today</p>
@@ -260,6 +261,49 @@
     <div class="week-steps">
       <button type="button" id="week-prev" class="text-step">&larr; Earlier</button>
       <button type="button" id="week-next" class="text-step">Later &rarr;</button>
+    </div>
+  </main>
+</section>
+
+<!-- ============ BANK CHECK ============ -->
+<section id="audit-screen" class="screen is-hidden">
+  <main class="page">
+    <div class="head">
+      <button type="button" id="audit-back" class="head-link is-ink">&larr; Back</button>
+      <span class="head-note">Bank check</span>
+    </div>
+    <div class="rule"></div>
+
+    <p id="audit-eyebrow" class="eyebrow"></p>
+    <div class="figure figure-mid">
+      <span class="sym">$</span><span id="audit-expected">0.00</span>
+    </div>
+    <p class="ask-sub">Your pool and every grocery stipend that's landed, less everything you've logged. Other money is whatever else sits in the account outside the plan.</p>
+
+    <div class="rule"></div>
+    <div id="audit-lines" class="lines"></div>
+    <p id="audit-pending" class="eyebrow eyebrow-note is-hidden"></p>
+
+    <div class="rule"></div>
+    <p class="eyebrow">What it actually reads</p>
+    <label class="note-row audit-in" for="audit-actual">
+      <span class="note-k">$</span>
+      <input id="audit-actual" class="note-in" type="text" inputmode="decimal" placeholder="0.00" autocomplete="off" enterkeyhint="done" aria-label="Actual bank balance">
+    </label>
+
+    <div id="audit-result" class="is-hidden">
+      <p id="audit-verdict" class="audit-verdict"></p>
+      <button type="button" id="audit-primary" class="btn btn-inline"></button>
+      <div class="week-steps">
+        <button type="button" id="audit-alt" class="text-step"></button>
+        <button type="button" id="audit-leave" class="text-step" data-act="record"></button>
+      </div>
+    </div>
+
+    <div id="audit-history-wrap" class="is-hidden">
+      <div class="rule"></div>
+      <p class="eyebrow">Past checks</p>
+      <div id="audit-history" class="lines pad-lines"></div>
     </div>
   </main>
 </section>
@@ -426,6 +470,6 @@
 
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-<script src="app.js?v=20260916b"></script>
+<script src="app.js?v=20260924a"></script>
 </body>
 </html>
