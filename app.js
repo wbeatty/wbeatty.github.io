@@ -684,7 +684,14 @@
     {
       const nextMonday = addDays(mondayOf(v.today), 7);
       const sub = v.hasSavings ? '' : `fills ${fmtShort(nextMonday)}`;
-      out.push(leaderLine('SAVINGS', money(v.savings), { sub, quiet: !v.hasSavings }));
+      // Opens the week-by-week breakdown: what each week put in or took out.
+      out.push(`
+        <button type="button" id="savings-line" class="line line-go${v.hasSavings ? '' : ' is-quiet'}">
+          <span class="k">SAVINGS${sub ? `<span class="k-sub"> · ${escapeHtml(sub)}</span>` : ''}</span>
+          <span class="lead"></span>
+          <span class="v">${money(v.savings)}</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>
+        </button>`);
     }
 
     if (v.planned.length) {
@@ -1730,6 +1737,14 @@
       renderCalendar();
     });
     $('plan-btn').addEventListener('click', () => { render(); openPlan(); });
+    $('env-lines').addEventListener('click', e => {
+      if (!e.target.closest('#savings-line')) return;
+      render();
+      const w = lastClosedWeek() || view.timeline.weeks.find(x => x.isCurrent);
+      weekIndex = w ? w.index : 0;
+      show('week');
+      renderWeek();
+    });
     $('ledger').addEventListener('click', e => {
       const b = e.target.closest('[data-del]');
       if (b) deleteTx(b.dataset.del);

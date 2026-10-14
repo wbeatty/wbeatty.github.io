@@ -389,6 +389,10 @@ body.keypad-up #s3-figure .caret,
 .line-link svg { width: 9px; height: 9px; flex-shrink: 0; align-self: center; }
 .line-link:active { color: var(--ink); }
 
+.line-go { width: 100%; }
+.line-go svg { width: 9px; height: 9px; flex-shrink: 0; align-self: center; }
+.line-go:active { color: var(--muted); }
+
 /* ── Bank check ────────────────────────────────────────── */
 
 .audit-in { margin: 14px 0 0; }
