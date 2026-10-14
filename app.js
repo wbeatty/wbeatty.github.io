@@ -1,7 +1,7 @@
 // Daily Spend — semester envelope tracker, printed as a receipt.
 // Three envelopes over one ledger: discretionary (weekly rollover),
-// groceries (monthly stipend; leftovers roll into a savings jar at cycle close),
-// set-aside purchases.
+// groceries (monthly stipend), set-aside purchases — plus one savings jar fed by
+// closed weeks' surplus and closed grocery cycles' leftovers.
 
 (function () {
   'use strict';
@@ -14,7 +14,7 @@
   const CAT_OUT = 'out';
   const CAT_FOOD = 'food';
   const CAT_PLAN = 'plan';
-  const CAT_SAVE = 'save'; // drawn from grocery savings
+  const CAT_SAVE = 'save'; // drawn from savings (week surpluses + grocery leftovers)
 
   const GROUNDS = {
     paper: '#E6DFCF',
@@ -204,15 +204,45 @@
     return cycles;
   }
 
+  // Every dated movement in or out of savings other than a week closing: a grocery
+  // overage bites on the day the cycle crosses its stipend, a closed cycle's
+  // leftover lands the day after it ends, and a savings draw lands on its own day.
+  function savingsEvents(cycles) {
+    const ev = Object.create(null);
+    const add = (date, amt, src) => {
+      const e = ev[date] || (ev[date] = { food: 0, draw: 0 });
+      e[src] += amt;
+    };
+    for (const c of cycles) {
+      const food = state.tx
+        .filter(t => t.cat === CAT_FOOD && diffDays(c.start, t.date) >= 0 && diffDays(t.date, c.end) >= 0)
+        .sort((a, b) => diffDays(b.date, a.date) || a.ts - b.ts);
+      let cum = 0;
+      for (const t of food) {
+        const before = Math.max(0, cum - c.funded);
+        cum += t.amount;
+        const after = Math.max(0, cum - c.funded);
+        if (after !== before) add(t.date, before - after, 'food');
+      }
+      if (c.closed && c.funded > c.spent) add(addDays(c.end, 1), c.funded - c.spent, 'food');
+    }
+    for (const t of state.tx) {
+      if (t.cat === CAT_SAVE) add(t.date, -t.amount, 'draw');
+    }
+    return ev;
+  }
+
   // Walks every day of the plan once: weekly allowance with within-week rollover,
-  // surplus banked at each Monday, deficit drawn from the bank before it carries.
-  function buildTimeline(dailyBase) {
+  // and one savings jar alongside it. A closed week's surplus moves into savings;
+  // a week that ran over, a grocery overage, or a savings draw comes out of it.
+  // Whatever savings can't cover comes out of the current week instead.
+  function buildTimeline(dailyBase, cycles) {
     const today = getToday();
     const days = [];
     const byDate = Object.create(null);
     const weeks = [];
     const total = diffDays(state.startDate, state.endDate) + 1;
-    if (total <= 0) return { days, byDate, weeks, banked: 0, carry: 0, weekAllowance: 0, weekSpent: 0 };
+    if (total <= 0) return { days, byDate, weeks, savings: 0, moved: 0, fromWeeks: 0, fromGroceries: 0, carry: 0, weekAllowance: 0, weekSpent: 0 };
 
     // Group every in-range date by the Monday that owns it.
     const groups = [];
@@ -227,24 +257,44 @@
       cursor.dates.push(date);
     }
 
-    let banked = 0;
-    let carry = 0; // <= 0, an unpaid deficit dragged into the current week
+    const ev = savingsEvents(cycles);
+
+    // savings === moved + fromGroceries + draws, always. `moved` is the net that
+    // left discretionary for savings (weeks closing, and weeks covering a shortfall).
+    let savings = 0;
+    let moved = 0;
+    let fromGroceries = 0;
+    let carry = 0;     // <= 0, an unpaid deficit dragged into the next week
     let curAllowance = 0;
     let curSpent = 0;
 
+    // Savings never sits below zero: the shortfall is taken from the week.
+    const settle = () => {
+      if (savings >= 0) return 0;
+      const short = savings;
+      moved -= short;
+      savings = 0;
+      return short;
+    };
+
     groups.forEach((g, gi) => {
       const carryIn = carry;
-      const alloc = dailyBase * g.dates.length + carryIn;
       const last = g.dates[g.dates.length - 1];
       const closed = diffDays(last, today) > 0;
       const isCurrent = !closed && diffDays(g.dates[0], today) <= 0;
-      const bankBefore = banked;
+      const bankBefore = savings;
+      let hit = 0; // what savings couldn't cover mid-week, taken from this week
       let spentSoFar = 0;
 
       g.dates.forEach((date, i) => {
         const future = diffDays(today, date) > 0;
+        if (!future && ev[date]) {
+          savings += ev[date].food + ev[date].draw;
+          fromGroceries += ev[date].food;
+          hit += settle();
+        }
         // Everything the week has granted through today, less what it already took.
-        const allowance = dailyBase * (i + 1) + carryIn - spentSoFar;
+        const allowance = dailyBase * (i + 1) + carryIn + hit - spentSoFar;
         const spent = future ? 0 : spentOn(date, CAT_OUT);
         const row = {
           date,
@@ -261,15 +311,13 @@
         byDate[date] = row;
       });
 
+      const alloc = dailyBase * g.dates.length + carryIn + hit;
       const surplus = alloc - spentSoFar;
 
       if (closed) {
-        carry = 0;
-        banked += surplus;
-        if (banked < 0) {
-          carry = banked; // bank is empty; the rest follows you into next week
-          banked = 0;
-        }
+        savings += surplus;
+        moved += surplus;
+        carry = settle(); // savings is empty; the rest follows you into next week
       } else if (isCurrent) {
         curAllowance = alloc;
         curSpent = spentSoFar;
@@ -286,11 +334,21 @@
         closed,
         isCurrent,
         bankBefore,
-        bankAfter: closed ? banked : bankBefore
+        bankAfter: closed ? savings : bankBefore
       });
     });
 
-    return { days, byDate, weeks, banked, carry, weekAllowance: curAllowance, weekSpent: curSpent };
+    // Anything dated outside the plan's days (a last cycle that closes on the
+    // final day lands the day after) still counts once it's in the past.
+    for (const date in ev) {
+      if (!byDate[date] && diffDays(date, today) >= 0) {
+        savings += ev[date].food + ev[date].draw;
+        fromGroceries += ev[date].food;
+        settle();
+      }
+    }
+
+    return { days, byDate, weeks, savings, moved, fromWeeks: moved, fromGroceries, carry, weekAllowance: curAllowance, weekSpent: curSpent };
   }
 
   function compute() {
@@ -309,26 +367,14 @@
     const asideLeft = planned.reduce((s, p) => s + Math.max(0, p.reserve - p.spent), 0);
 
     const cycles = buildCycles();
-    // Grocery leftovers roll into their own jar when a cycle closes. Nothing else
-    // feeds it; it only drains — by logging against it, or by a grocery overage,
-    // which bites the jar first and discretionary only once the jar is dry.
-    let saved = 0;
-    let overage = 0;
-    for (const c of cycles) {
-      const left = c.funded - c.spent;
-      if (left < 0) overage -= left;          // closed or live, an overage bites immediately
-      else if (c.closed) saved += left;
-    }
-    const spentSave = sumTx(state.tx.filter(t => t.cat === CAT_SAVE));
-    const saveLeft = saved - overage - spentSave;
-    const spill = Math.min(0, saveLeft);      // an overdrawn jar is the only thing that reaches discretionary
     const cycle = cycles.find(c => !c.closed) || null;
 
-    const discPool = state.pool - reserveTotal + spill;
+    const discPool = state.pool - reserveTotal;
     const dailyBase = totalDays > 0 ? discPool / totalDays : 0;
 
-    const tl = buildTimeline(dailyBase);
+    const tl = buildTimeline(dailyBase, cycles);
     const todayRow = tl.byDate[today] || null;
+    const spentSave = sumTx(state.tx.filter(t => t.cat === CAT_SAVE));
 
     const spentOut = sumTx(state.tx.filter(t => t.cat === CAT_OUT));
 
@@ -350,18 +396,19 @@
       asideLeft,
       cycles,
       cycle,
-      spill,
-      saved,
-      saveLeft,
-      hasSavings: saved > 0 || spentSave > 0,
+      savings: tl.savings,
+      fromWeeks: tl.fromWeeks,
+      fromGroceries: tl.fromGroceries,
+      spentSave,
+      hasSavings: tl.weeks.some(w => w.closed) || tl.fromGroceries !== 0 || spentSave > 0,
       discPool,
-      discLeft: discPool - spentOut,
+      // What's still ahead in the daily spread; surplus already moved to savings isn't.
+      discLeft: discPool - spentOut - tl.moved,
       dailyBase,
       timeline: tl,
       todayRow,
       spentToday: spentOn(today, CAT_OUT),
       spentOut,
-      banked: tl.banked,
       stipendsIn,
       stipendsCount: landed.length,
       spentAll,
@@ -572,15 +619,15 @@
     if (current === 'audit') renderAudit();
   }
 
-  // "of 16.60 allowed · 52.40 banked" — the bank is a win counter, not spendable,
-  // so it stays a quiet trailing clause and never joins the figure.
+  // "of 16.60 allowed · 52.40 saved" — savings is drawn on deliberately from the
+  // Savings tab, so it stays a quiet trailing clause and never joins the figure.
   function renderHeroSub(v, row, allowance, over) {
     const parts = [`<span>of ${escapeHtml(moneyShort(allowance))} allowed</span>`];
     if (over) parts.push(`<span class="over-text">${escapeHtml(moneyShort(row.remaining))} over</span>`);
-    if (v.banked >= 0.005 && v.timeline.weeks.some(w => w.closed)) {
+    if (v.savings >= 0.005) {
       parts.push(`
         <button type="button" id="banked-btn" class="banked">
-          ${escapeHtml(moneyShort(v.banked))} banked
+          ${escapeHtml(moneyShort(v.savings))} saved
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>
         </button>`);
     }
@@ -643,11 +690,18 @@
       out.push(leaderLine('GROCERIES', money(left), { sub: `${toGo}d`, over: left < 0 }));
     }
 
-    if (state.stipend) {
+    {
+      const nextMonday = addDays(mondayOf(v.today), 7);
+      // Net by source, so the parts add up to the figure.
+      const signed = n => (n < 0 ? '−' : '') + moneyShort(n);
+      const parts = [];
+      if (Math.abs(v.fromWeeks) >= 0.005) parts.push(`${signed(v.fromWeeks)} weeks`);
+      if (Math.abs(v.fromGroceries) >= 0.005) parts.push(`${signed(v.fromGroceries)} groceries`);
+      if (v.spentSave >= 0.005) parts.push(`${moneyShort(v.spentSave)} spent`);
       const sub = v.hasSavings
-        ? `${moneyShort(v.saved)} rolled in`
-        : (v.cycle ? `rolls in ${fmtShort(addDays(v.cycle.end, 1))}` : '');
-      out.push(leaderLine('GROCERY SAVINGS', money(v.saveLeft), { sub, over: v.saveLeft < 0, quiet: !v.hasSavings }));
+        ? parts.join(' · ')
+        : `fills ${fmtShort(nextMonday)}`;
+      out.push(leaderLine('SAVINGS', money(v.savings), { sub, quiet: !v.hasSavings }));
     }
 
     if (v.planned.length) {
@@ -701,7 +755,7 @@
     const tabs = [
       { key: CAT_OUT, pid: null, label: outName() },
       ...(state.stipend ? [{ key: CAT_FOOD, pid: null, label: 'Groceries' }] : []),
-      ...(v.saveLeft > 0 ? [{ key: CAT_SAVE, pid: null, label: 'Savings' }] : []),
+      ...(v.savings > 0 || entry.cat === CAT_SAVE ? [{ key: CAT_SAVE, pid: null, label: 'Savings' }] : []),
       ...v.planned.filter(p => !p.done).map(p => ({ key: CAT_PLAN, pid: p.id, label: p.name }))
     ];
     const html = tabs.map(c => {
@@ -749,9 +803,9 @@
       over = left < 0;
       text = over ? `groceries ${money(left)} over` : `leaves ${money(left)} of groceries`;
     } else if (entry.cat === CAT_SAVE) {
-      const left = view.saveLeft - amt;
+      const left = view.savings - amt;
       over = left < 0;
-      text = over ? `${money(left)} more than you've saved` : `leaves ${money(left)} saved`;
+      text = over ? `${money(-left)} more than you've saved · comes out of this week` : `leaves ${money(left)} saved`;
     } else {
       const p = view.planned.find(x => x.id === entry.pid);
       const left = p ? p.amount - p.spent - amt : -amt;
@@ -943,13 +997,13 @@
     $('week-figure').textContent = money(banked);
     $('week-figure').parentElement.classList.toggle('is-over', banked < 0);
     $('week-figure-sub').textContent = w.closed
-      ? (banked >= 0 ? `banked into week ${w.index + 2}` : 'drawn from the bank')
+      ? (banked >= 0 ? 'moved to savings' : 'covered from savings')
       : (banked >= 0 ? 'unspent so far this week' : 'over so far this week');
 
     $('week-days').innerHTML = weekDayLines(w);
     $('week-allowance').textContent = money(w.alloc);
     $('week-spent').textContent = money(w.spent);
-    $('week-total-k').textContent = banked < 0 ? 'OVER' : 'BANKED';
+    $('week-total-k').textContent = banked < 0 ? 'OVER' : (w.closed ? 'TO SAVINGS' : 'UNSPENT');
     $('week-banked').textContent = money(banked);
 
     const note = groceryNoteFor(w);
@@ -980,12 +1034,12 @@
     const banked = w.surplus;
     $('recap-figure').textContent = money(banked);
     $('recap-figure').parentElement.classList.toggle('is-over', banked < 0);
-    $('recap-sub').textContent = banked >= 0 ? 'banked into this week' : 'over — taken from the bank';
+    $('recap-sub').textContent = banked >= 0 ? 'moved to savings' : 'over — covered from savings';
     $('recap-days').innerHTML = weekDayLines(w);
     $('recap-allowance').textContent = money(w.alloc);
     $('recap-spent').textContent = money(w.spent);
     $('recap-carried').textContent = money(w.bankBefore);
-    $('recap-bank').textContent = money(w.bankAfter);
+    $('recap-bank').textContent = money(view.savings);
 
     const note = groceryNoteFor(w);
     $('recap-note').textContent = note;

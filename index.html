@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62.5..125,400..700&family=Martian+Mono:wght@400..600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=20260924a">
+  <link rel="stylesheet" href="styles.css?v=20261013a">
 </head>
 <body>
 
@@ -83,7 +83,7 @@
           <span class="box"></span>
           <span class="opt-body">
             <span class="opt-title">SEPARATE STIPEND</span>
-            <span class="opt-sub">Groceries have their own pot and never touch the daily number. Whatever's left at month end rolls into a savings jar you can draw on later.</span>
+            <span class="opt-sub">Groceries have their own pot and never touch the daily number. Whatever's left at month end rolls into savings, alongside any week you finish under.</span>
           </span>
         </button>
         <button type="button" class="opt" data-groceries="one">
@@ -251,7 +251,7 @@
         <div class="lines lines-inset">
           <div class="line"><span class="k">ALLOWANCE</span><span class="lead"></span><span class="v" id="week-allowance">—</span></div>
           <div class="line"><span class="k">SPENT</span><span class="lead"></span><span class="v" id="week-spent">—</span></div>
-          <div class="line line-total"><span class="k" id="week-total-k">BANKED</span><span class="lead"></span><span class="v" id="week-banked">—</span></div>
+          <div class="line line-total"><span class="k" id="week-total-k">TO SAVINGS</span><span class="lead"></span><span class="v" id="week-banked">—</span></div>
         </div>
         <p id="week-note" class="eyebrow eyebrow-loose"></p>
       </div>
@@ -444,8 +444,8 @@
       <div class="lines">
         <div class="line is-quiet"><span class="k">ALLOWANCE</span><span class="lead"></span><span class="v" id="recap-allowance">—</span></div>
         <div class="line is-quiet"><span class="k">SPENT</span><span class="lead"></span><span class="v" id="recap-spent">—</span></div>
-        <div class="line is-quiet"><span class="k">CARRIED IN</span><span class="lead"></span><span class="v" id="recap-carried">—</span></div>
-        <div class="line line-total"><span class="k">BANK NOW</span><span class="lead"></span><span class="v" id="recap-bank">—</span></div>
+        <div class="line is-quiet"><span class="k">SAVINGS BEFORE</span><span class="lead"></span><span class="v" id="recap-carried">—</span></div>
+        <div class="line line-total"><span class="k">SAVINGS NOW</span><span class="lead"></span><span class="v" id="recap-bank">—</span></div>
       </div>
       <p id="recap-note" class="eyebrow eyebrow-center eyebrow-loose"></p>
       <button type="button" id="recap-ok" class="btn btn-inline">Start the week</button>
@@ -470,6 +470,6 @@
 
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-<script src="app.js?v=20260924a"></script>
+<script src="app.js?v=20261013a"></script>
 </body>
 </html>
