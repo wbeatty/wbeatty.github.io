@@ -242,7 +242,7 @@
     const byDate = Object.create(null);
     const weeks = [];
     const total = diffDays(state.startDate, state.endDate) + 1;
-    if (total <= 0) return { days, byDate, weeks, savings: 0, moved: 0, fromWeeks: 0, fromGroceries: 0, carry: 0, weekAllowance: 0, weekSpent: 0 };
+    if (total <= 0) return { days, byDate, weeks, savings: 0, moved: 0, fromGroceries: 0, carry: 0, weekAllowance: 0, weekSpent: 0 };
 
     // Group every in-range date by the Monday that owns it.
     const groups = [];
@@ -348,7 +348,7 @@
       }
     }
 
-    return { days, byDate, weeks, savings, moved, fromWeeks: moved, fromGroceries, carry, weekAllowance: curAllowance, weekSpent: curSpent };
+    return { days, byDate, weeks, savings, moved, fromGroceries, carry, weekAllowance: curAllowance, weekSpent: curSpent };
   }
 
   function compute() {
@@ -397,7 +397,6 @@
       cycles,
       cycle,
       savings: tl.savings,
-      fromWeeks: tl.fromWeeks,
       fromGroceries: tl.fromGroceries,
       spentSave,
       hasSavings: tl.weeks.some(w => w.closed) || tl.fromGroceries !== 0 || spentSave > 0,
@@ -619,18 +618,10 @@
     if (current === 'audit') renderAudit();
   }
 
-  // "of 16.60 allowed · 52.40 saved" — savings is drawn on deliberately from the
-  // Savings tab, so it stays a quiet trailing clause and never joins the figure.
+  // "of 16.60 allowed", plus how far over when today ran past it.
   function renderHeroSub(v, row, allowance, over) {
     const parts = [`<span>of ${escapeHtml(moneyShort(allowance))} allowed</span>`];
     if (over) parts.push(`<span class="over-text">${escapeHtml(moneyShort(row.remaining))} over</span>`);
-    if (v.savings >= 0.005) {
-      parts.push(`
-        <button type="button" id="banked-btn" class="banked">
-          ${escapeHtml(moneyShort(v.savings))} saved
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>
-        </button>`);
-    }
     $('hero-sub').innerHTML = parts.join('<span class="dot">·</span>');
   }
 
@@ -692,15 +683,7 @@
 
     {
       const nextMonday = addDays(mondayOf(v.today), 7);
-      // Net by source, so the parts add up to the figure.
-      const signed = n => (n < 0 ? '−' : '') + moneyShort(n);
-      const parts = [];
-      if (Math.abs(v.fromWeeks) >= 0.005) parts.push(`${signed(v.fromWeeks)} weeks`);
-      if (Math.abs(v.fromGroceries) >= 0.005) parts.push(`${signed(v.fromGroceries)} groceries`);
-      if (v.spentSave >= 0.005) parts.push(`${moneyShort(v.spentSave)} spent`);
-      const sub = v.hasSavings
-        ? parts.join(' · ')
-        : `fills ${fmtShort(nextMonday)}`;
+      const sub = v.hasSavings ? '' : `fills ${fmtShort(nextMonday)}`;
       out.push(leaderLine('SAVINGS', money(v.savings), { sub, quiet: !v.hasSavings }));
     }
 
@@ -1747,14 +1730,6 @@
       renderCalendar();
     });
     $('plan-btn').addEventListener('click', () => { render(); openPlan(); });
-    $('hero-sub').addEventListener('click', e => {
-      if (!e.target.closest('#banked-btn')) return;
-      render();
-      const w = lastClosedWeek();
-      weekIndex = w ? w.index : 0;
-      show('week');
-      renderWeek();
-    });
     $('ledger').addEventListener('click', e => {
       const b = e.target.closest('[data-del]');
       if (b) deleteTx(b.dataset.del);
