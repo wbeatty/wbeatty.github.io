@@ -1172,17 +1172,11 @@
       alt.classList.remove('is-hidden');
       leave.classList.remove('is-hidden');
     } else {
-      const first = state.cushion == null;
       verdict.className = 'audit-verdict note';
-      verdict.innerHTML = first
-        ? `Your bank has <strong>$${gap} more</strong> than the plan. On a first check that's usually money that was never part of it — count it outside the plan and future checks line up.`
-        : `Your bank has <strong>$${gap} more</strong> than the plan expects. A charge may still be pending, or money came in that isn't part of the plan — put it in savings, or count it outside the plan.`;
-      const toSave = { label: `Add $${gap} to savings`, act: 'save' };
-      const outside = { label: 'Count it outside the plan', act: 'outside' };
-      primary = first ? outside : toSave;
-      const other = first ? toSave : outside;
-      alt.textContent = other.label;
-      alt.dataset.act = other.act;
+      verdict.innerHTML = `Your bank has <strong>$${gap} more</strong> than the plan expects. A charge may still be pending, or money came in that isn't part of the plan — put it in savings, or count it outside the plan.`;
+      primary = { label: `Add $${gap} to savings`, act: 'save' };
+      alt.textContent = 'Count it outside the plan';
+      alt.dataset.act = 'outside';
       alt.classList.remove('is-hidden');
       leave.textContent = 'Pending · record as is';
       leave.classList.remove('is-hidden');
