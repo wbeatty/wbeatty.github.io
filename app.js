@@ -107,7 +107,8 @@
       tx: [],
       recapSeen: null,
       cushion: null, // money in the account that isn't part of the plan; null until first bank check
-      audits: []
+      audits: [],
+      deposits: [] // extra money a bank check moved into savings: {date, ts, amount}
     };
   }
 
@@ -206,11 +207,12 @@
 
   // Every dated movement in or out of savings other than a week closing: a grocery
   // overage bites on the day the cycle crosses its stipend, a closed cycle's
-  // leftover lands the day after it ends, and a savings draw lands on its own day.
+  // leftover lands the day after it ends, and a savings draw or a deposit from a
+  // bank check lands on its own day.
   function savingsEvents(cycles) {
     const ev = Object.create(null);
     const add = (date, amt, src) => {
-      const e = ev[date] || (ev[date] = { food: 0, draw: 0 });
+      const e = ev[date] || (ev[date] = { food: 0, draw: 0, dep: 0 });
       e[src] += amt;
     };
     for (const c of cycles) {
@@ -229,6 +231,7 @@
     for (const t of state.tx) {
       if (t.cat === CAT_SAVE) add(t.date, -t.amount, 'draw');
     }
+    for (const d of state.deposits || []) add(d.date, d.amount, 'dep');
     return ev;
   }
 
@@ -259,7 +262,7 @@
 
     const ev = savingsEvents(cycles);
 
-    // savings === moved + fromGroceries + draws, always. `moved` is the net that
+    // savings === moved + fromGroceries + draws + deposits, always. `moved` is the net that
     // left discretionary for savings (weeks closing, and weeks covering a shortfall).
     let savings = 0;
     let moved = 0;
@@ -289,7 +292,7 @@
       g.dates.forEach((date, i) => {
         const future = diffDays(today, date) > 0;
         if (!future && ev[date]) {
-          savings += ev[date].food + ev[date].draw;
+          savings += ev[date].food + ev[date].draw + ev[date].dep;
           fromGroceries += ev[date].food;
           hit += settle();
         }
@@ -342,7 +345,7 @@
     // final day lands the day after) still counts once it's in the past.
     for (const date in ev) {
       if (!byDate[date] && diffDays(date, today) >= 0) {
-        savings += ev[date].food + ev[date].draw;
+        savings += ev[date].food + ev[date].draw + ev[date].dep;
         fromGroceries += ev[date].food;
         settle();
       }
@@ -375,16 +378,18 @@
     const tl = buildTimeline(dailyBase, cycles);
     const todayRow = tl.byDate[today] || null;
     const spentSave = sumTx(state.tx.filter(t => t.cat === CAT_SAVE));
+    const deposited = (state.deposits || []).reduce((s, d) => s + d.amount, 0);
 
     const spentOut = sumTx(state.tx.filter(t => t.cat === CAT_OUT));
 
     // What the bank should read: the pool sits in the account from day one, each
     // stipend lands on its cycle's first day, and every logged item came out of it.
+    // Extra a bank check moved into savings is real money in the account too.
     const landed = cycles.filter(c => diffDays(c.start, today) >= 0);
     const stipendsIn = landed.reduce((s, c) => s + c.funded, 0);
     const spentAll = sumTx(state.tx);
     const cushion = state.cushion || 0;
-    const bankExpected = state.pool + stipendsIn + cushion - spentAll;
+    const bankExpected = state.pool + stipendsIn + cushion + deposited - spentAll;
 
     return {
       today,
@@ -399,7 +404,8 @@
       savings: tl.savings,
       fromGroceries: tl.fromGroceries,
       spentSave,
-      hasSavings: tl.weeks.some(w => w.closed) || tl.fromGroceries !== 0 || spentSave > 0,
+      deposited,
+      hasSavings: tl.weeks.some(w => w.closed) || tl.fromGroceries !== 0 || spentSave > 0 || deposited > 0,
       discPool,
       // What's still ahead in the daily spread; surplus already moved to savings isn't.
       discLeft: discPool - spentOut - tl.moved,
@@ -1101,6 +1107,13 @@
         sub: `${v.stipendsCount} in`
       }));
     }
+    if (v.deposited) {
+      const n = state.deposits.length;
+      lines.push(leaderLine('EXTRA TO SAVINGS', money(v.deposited), {
+        quiet: true,
+        sub: `${n} check${n === 1 ? '' : 's'}`
+      }));
+    }
     lines.push(leaderLine('LOGGED', `− ${money(v.spentAll)}`, {
       quiet: true,
       sub: `${state.tx.length} item${state.tx.length === 1 ? '' : 's'}`
@@ -1163,9 +1176,14 @@
       verdict.className = 'audit-verdict note';
       verdict.innerHTML = first
         ? `Your bank has <strong>$${gap} more</strong> than the plan. On a first check that's usually money that was never part of it — count it outside the plan and future checks line up.`
-        : `Your bank has <strong>$${gap} more</strong> than the plan expects. A charge may still be pending, or money came in that isn't part of the plan.`;
-      primary = { label: 'Count it outside the plan', act: 'outside' };
-      alt.classList.add('is-hidden');
+        : `Your bank has <strong>$${gap} more</strong> than the plan expects. A charge may still be pending, or money came in that isn't part of the plan — put it in savings, or count it outside the plan.`;
+      const toSave = { label: `Add $${gap} to savings`, act: 'save' };
+      const outside = { label: 'Count it outside the plan', act: 'outside' };
+      primary = first ? outside : toSave;
+      const other = first ? toSave : outside;
+      alt.textContent = other.label;
+      alt.dataset.act = other.act;
+      alt.classList.remove('is-hidden');
       leave.textContent = 'Pending · record as is';
       leave.classList.remove('is-hidden');
     }
@@ -1182,7 +1200,9 @@
       let val;
       if (Math.abs(d) < 0.005) val = 'matched';
       else val = `${d < 0 ? '−' : '+'}${money(d)}`;
-      const sub = a.fix === 'outside' ? 'baseline moved' : `read ${moneySigned(a.actual)}`;
+      const sub = a.fix === 'outside' ? 'baseline moved'
+        : a.fix === 'saved' ? 'to savings'
+        : `read ${moneySigned(a.actual)}`;
       return leaderLine(fmtShort(a.date).toUpperCase(), val, { quiet: true, sub });
     }).join('');
   }
@@ -1216,6 +1236,16 @@
       $('audit-actual').value = '';
       render();
       toast('Baseline moved · plan and bank agree');
+      return;
+    }
+    if (act === 'save' && diff > 0) {
+      recordAudit('saved');
+      state.deposits = state.deposits || [];
+      state.deposits.push({ date: getToday(), ts: Date.now(), amount: diff });
+      saveState();
+      $('audit-actual').value = '';
+      render();
+      toast(`$${money(diff)} added to savings`);
       return;
     }
     recordAudit(null);
